@@ -34,7 +34,7 @@ const useAuthStore = create<AuthState>()(
               user: {
                 id: firebaseUser.uid,
                 email: firebaseUser.email,
-                role: "seller"
+                role: "admin"
               },
               isAuthenticated: true,
             });
@@ -50,7 +50,7 @@ const useAuthStore = create<AuthState>()(
           user: {
             id: result.user.uid,
             email: result.user.email,
-            role: "seller", // temporal para pruebas
+            role: "admin", // temporal para pruebas
           },
           isAuthenticated: true,
         });
