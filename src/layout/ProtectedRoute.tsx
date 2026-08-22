@@ -1,13 +1,14 @@
-// ejemplo simple de ProtectedRoute.tsx
 import { Navigate, useLocation } from "react-router-dom";
+import type { ReactElement } from "react";
 import useAuthStore from "../store/useAuthStore";
 import { canAccessRoute, type Role } from "../config/roles";
-import type { ReactElement } from "react";
 
 const ProtectedRoute = ({ children }: { children: ReactElement }) => {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const role: Role | null = user?.role ?? null;
+
+  console.log("ROL ACTUAL:", role);
 
   if (!canAccessRoute(role, location.pathname)) {
     return (

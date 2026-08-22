@@ -1,19 +1,24 @@
 {
-  "name": "nexo-io",
+  "name": "TINKU",
   "private": true,
   "version": "0.0.0",
   "homepage": "https://1pipe1.github.io/Fullstack-Challenge-Ecommerce/",
   "type": "module",
   "scripts": {
     "dev": "vite --open --host",
-    "build": "vite build",
+    "build": "npm run build:dev",
+    "build:dev": "vite build --mode development",
+    "build:prod": "vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy": "npm run build && gh-pages -d dist"
+    "deploy": "npm run build && gh-pages -d dist",
+    "seed:products": "tsx src/scripts/seedProducts.ts"
   },
   "dependencies": {
     "axios": "^1.15.0",
+    "csv-parser": "^3.2.1",
     "firebase": "^12.12.1",
+    "firebase-admin": "^14.3.0",
     "lucide-react": "^1.9.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -32,6 +37,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "gh-pages": "^6.3.0",
     "globals": "^17.4.0",
+    "tsx": "^4.23.12",
     "typescript": "^7.0.2",
     "vite": "^8.0.4"
   }

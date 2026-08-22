@@ -29,7 +29,7 @@ const HomePage: FC = () => {
         setLoading(false);
       }
     };
- 
+
     loadProducts();
   }, [fetchProducts]);
 
@@ -40,7 +40,10 @@ const HomePage: FC = () => {
       try {
         await deleteDoc(doc(db, "draftOrders", activeDraftId));
       } catch (error) {
-        console.error("Error deleting resumed draft after cart was cleared:", error);
+        console.error(
+          "Error deleting resumed draft after cart was cleared:",
+          error,
+        );
       } finally {
         clearActiveDraftId();
       }
@@ -49,8 +52,8 @@ const HomePage: FC = () => {
     cleanupDraft();
   }, [activeDraftId, cart.length, clearActiveDraftId]);
 
-  const filteredProducts = products.filter((product) => {
-    const title = product?.title || product?.name || "";
+  const filteredProducts = products.filter((product: any) => {
+    const title = product?.nombre || product?.title || product?.name || "";
     return title.toLowerCase().includes(search.toLowerCase());
   });
 
@@ -64,7 +67,7 @@ const HomePage: FC = () => {
       </div>
     );
   }
-
+  console.log("Productos que llegaron a HomePage:", products);
   return (
     <div className="min-h-screen bg-[#F0F4F8] text-gray-900">
       <Navbar

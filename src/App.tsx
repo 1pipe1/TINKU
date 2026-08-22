@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import useAuthStore from "./store/useAuthStore";
 import AuthPage from "./pages/AuthPage";
@@ -9,7 +9,7 @@ import StockPage from "./pages/StockPage";
 import SalesPage from "./pages/SalesPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import SuspendedSalesPage from "./pages/SuspendedSalesPage";
-import ProtectedRoute from "./layout/ProductedRoute";
+import ProtectedRoute from "./layout/ProtectedRoute";
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -22,7 +22,7 @@ function App() {
   if (!hydrated) return null;
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route
           path="/login"
@@ -53,8 +53,8 @@ function App() {
           }
         />
       </Routes>
-    </HashRouter>
-  );                                        
+    </BrowserRouter>
+  );
 }
 
 export default App;

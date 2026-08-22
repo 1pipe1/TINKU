@@ -8,9 +8,9 @@ import {
 } from "firebase/auth";
 
 type AuthUser = {
-  id: string;
+  uid: string;
   email: string | null;
-  role?: "admin" | "seller" | "pending"; // optional role property
+  role: "admin" | "seller" | "pending"; // optional role property
 };
 
 type AuthState = {
@@ -32,7 +32,7 @@ const useAuthStore = create<AuthState>()(
           if (firebaseUser) {
             set({
               user: {
-                id: firebaseUser.uid,
+                uid: firebaseUser.uid,
                 email: firebaseUser.email,
                 role: "admin"
               },
@@ -48,7 +48,7 @@ const useAuthStore = create<AuthState>()(
         const result = await signInWithEmailAndPassword(auth, email, password);
         set({
           user: {
-            id: result.user.uid,
+            uid: result.user.uid,
             email: result.user.email,
             role: "admin", // temporal para pruebas
           },

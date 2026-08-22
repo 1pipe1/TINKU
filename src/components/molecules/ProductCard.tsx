@@ -12,60 +12,85 @@ const ProductCard = ({ product }: ProductCardProps) => {
   const addToCart = useCartStore((state) => state.addToCart);
   const [quantity, setQuantity] = useState(1);
 
-  const outOfStock = product.stock === 0;
+  // Rescate seguro de valores
+  const displayTitle =
+    product.title ||
+    (product as any).nombre ||
+    "Producto sin nombre";
+  const displayCategory =
+    product.category || (product as any).categoria || "General";
+  const displayPrice = product.price ?? (product as any).precio ?? 0;
+  const displayStock = product.stock ?? 0;
+  const imageUrl =
+    product.image && product.image.trim() !== "" ? product.image : null;
+
+  const outOfStock = displayStock === 0;
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 h-full flex flex-col text-center">
-      <div className="h-48 flex items-center justify-center mb-4">
-        <img
-          src={product.image || undefined}
-          alt={product.title ?? "Producto sin título"}
-          className="max-h-full max-w-full object-contain"
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 h-full flex flex-col justify-between text-center">
+      <div>
+        {/* Renderizado condicional de imagen o placeholder */}
+        <div className="h-32 flex items-center justify-center mb-4 bg-gray-50 rounded-lg">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={displayTitle}
+              className="max-h-full max-w-full object-contain"
+            />
+          ) : (
+            <span className="text-4xl">📦</span>
+          )}
+        </div>
+
+        <h2 className="text-lg font-bold mb-1 text-[#0F172A] line-clamp-2">
+          {displayTitle}
+        </h2>
+
+        <p className="text-xs font-semibold text-orange-600 bg-orange-50 inline-block px-2 py-1 rounded mb-3">
+          {displayCategory}
+        </p>
+
+        <div className="mb-3">
+          <Price amount={displayPrice} />
+        </div>
+
+        {outOfStock ? (
+          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full inline-block mb-3">
+            🚫 Agotado
+          </span>
+        ) : displayStock <= 10 ? (
+          <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full inline-block mb-3">
+            ⚠️ Últimas {displayStock} unidades
+          </span>
+        ) : null}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <button
+            onClick={() => setQuantity(Math.max(1, quantity - 1))}
+            disabled={outOfStock}
+            className="px-3 py-1 bg-gray-200 rounded-full disabled:opacity-40 font-bold"
+          >
+            -
+          </button>
+
+          <span className="text-lg font-semibold">{quantity}</span>
+
+          <button
+            onClick={() => setQuantity(Math.min(displayStock, quantity + 1))}
+            disabled={outOfStock}
+            className="px-3 py-1 bg-gray-200 rounded-full disabled:opacity-40 font-bold"
+          >
+            +
+          </button>
+        </div>
+
+        <Button
+          text={outOfStock ? "Sin stock" : "Registrar"}
+          onClick={() => !outOfStock && addToCart({ ...product, quantity })}
         />
       </div>
-
-      <h2 className="text-lg font-bold mb-3 text-[#0F172A] h-13 line-clamp-3">
-        {product.title ?? "Producto sin título"}
-      </h2>
-
-      <p className="text-sm text-gray-600 mb-4">{product.category ?? "Categoría no disponible"}</p>
-
-      <Price amount={product.price ?? 0} />
-
-      {outOfStock ? (
-        <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full mb-3">
-          🚫 Agotado
-        </span>
-      ) : product.stock <= 10 ? (
-        <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full mb-3">
-          ⚠️ Últimas {product.stock} unidades
-        </span>
-      ) : null}
-
-      <div className="flex items-center justify-center gap-2 mb-4">
-        <button
-          onClick={() => setQuantity(Math.max(1, quantity - 1))}
-          disabled={outOfStock}
-          className="px-3 py-1 bg-gray-200 rounded-full disabled:opacity-40"
-        >
-          -
-        </button>
-
-        <span className="text-lg font-semibold">{quantity}</span>
-
-        <button
-          onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-          disabled={outOfStock}
-          className="px-3 py-1 bg-gray-200 rounded-full disabled:opacity-40"
-        >
-          +
-        </button>
-      </div>
-
-      <Button
-        text={outOfStock ? "Sin stock" : "Registrar"}
-        onClick={() => !outOfStock && addToCart({ ...product, quantity })}
-      />
     </div>
   );
 };

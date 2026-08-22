@@ -19,11 +19,17 @@ const Navbar = ({ search, onSearchChange, onCheckout }: NavbarProps) => {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
   const role = user?.role ?? null;
+
+  console.log("NAVBAR:", {
+    isAuthenticated,
+    role,
+    user,
+  });
   return (
     <>
       <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 px-3 md:px-8 py-4 flex items-center justify-between gap-4">
         <h1 className="text-lg md:text-2xl font-bold text-[#0F172A] whitespace-nowrap">
-          Nexo.io
+          TINKU
         </h1>
 
         <div className="flex-1 flex justify-center items-center max-w-md">

@@ -92,40 +92,43 @@ const CheckoutPage = () => {
         return;
       }
 
-      await addDoc(collection(db, "orders"), {
-        customerName: "Cliente",
-        paymentMethod,
-        cashPaid: paymentMethod === "cash" ? cashPaidAmount : null,
-        change:
-          paymentMethod === "cash" && cashPaidAmount !== null
-            ? cashPaidAmount - totalPrice
-            : 0,
-        items: cart.map((item) => ({
-          id: item.id,
-          title: item.title || item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image,
-          customerName: "Cliente",
-          soldBy: user?.email || "guest",
-        })),
-        total: totalPrice,
-        status: "completed",
-        createdAt: serverTimestamp(),
-      });
+await addDoc(collection(db, "orders"), {
+  customerName: "Cliente",
+  paymentMethod,
+  cashPaid: paymentMethod === "cash" ? cashPaidAmount : null,
+  change:
+    paymentMethod === "cash" && cashPaidAmount !== null
+      ? cashPaidAmount - totalPrice
+      : 0,
+  items: cart.map((item) => ({
+    id: item.id,
+    title: item.title || item.name || (item as any).nombre || "",
+    price: item.price,
+    quantity: item.quantity,
+    image: item.image || "",
+    customerName: "Cliente",
+    soldBy: user?.email || "guest",
+  })),
+  total: totalPrice,
+  status: "completed",
+  createdAt: serverTimestamp(),
+});
 
-      for (const item of cart) {
-        const productRef = doc(db, "products", item.id);
-        const productSnapshot = await getDoc(productRef);
-        const productData = productSnapshot.data();
+   for (const item of cart) {
+     // CAMBIO: Se cambia "products" por "productos"
+     const productRef = doc(db, "productos", item.id);
+     const productSnapshot = await getDoc(productRef);
 
-        await updateDoc(productRef, {
-          stock:
-            productData.stock >= item.quantity
-              ? productData.stock - item.quantity
-              : 0,
-        });
-      }
+     if (productSnapshot.exists()) {
+       const productData = productSnapshot.data();
+       const currentStock = productData.stock ?? 0;
+
+       await updateDoc(productRef, {
+         stock:
+           currentStock >= item.quantity ? currentStock - item.quantity : 0,
+       });
+     }
+   }
 
       // Si venimos reanudando una venta, borrar el draft correspondiente
       if (resumeId) {
