@@ -10,15 +10,9 @@ import { db } from "../firebase";
 import useStockStore from "../store/useStockStore";
 import type { Product } from "../types/product";
 
-const emptyForm = {
-  title: "",
-  category: "",
-  price: "",
-  stock: "",
-  image: "",
-};
-
+const emptyForm = { title: "", category: "", price: "", stock: "", image: "" };
 type StockForm = typeof emptyForm;
+
 const StockPage = () => {
   const products = useStockStore((state) => state.products);
   const fetchProducts = useStockStore((state) => state.fetchProducts);
@@ -30,38 +24,46 @@ const StockPage = () => {
   useEffect(() => {
     fetchProducts().then(() => setLoading(false));
   }, [fetchProducts]);
+
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setForm({
-      title: product.title ?? "",
+      title: product.title ?? product.name ?? "",
       category: product.category ?? "",
       price: String(product.price ?? 0),
-      stock: String(product.stock),
+      stock: String(product.stock ?? 0),
       image: product.image ?? "",
     });
     setShowForm(true);
   };
 
+  // Borrar producto
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este producto?")) return;
-    await deleteDoc(doc(db, "productos", id));
+    await deleteDoc(doc(db, "productos", id)); // <--- "productos"
     fetchProducts();
   };
 
+  // Editar / Crear producto
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-const data = {
-  nombre: form.title, // Firestore usa 'nombre'
-  categoria: form.category, // Firestore usa 'categoria'
-  precio: parseFloat(form.price), // Firestore usa 'precio'
-  stock: parseInt(form.stock, 10) || 0,
-  image: form.image,
-};
-if (editingProduct) {
-  await updateDoc(doc(db, "productos", editingProduct.id), data); // Colección en español
-} else {
-  await addDoc(collection(db, "productos"), data); // Colección en español
-}
+    const data = {
+      title: form.title,
+      nombre: form.title,
+      category: form.category,
+      categoria: form.category,
+      price: parseFloat(form.price),
+      precio: parseFloat(form.price),
+      stock: parseInt(form.stock, 10),
+      image: form.image,
+    };
+
+    if (editingProduct) {
+      await updateDoc(doc(db, "productos", editingProduct.id), data); // <--- "productos"
+    } else {
+      await addDoc(collection(db, "productos"), data); // <--- "productos"
+    }
+
     setShowForm(false);
     setEditingProduct(null);
     setForm(emptyForm);
@@ -73,9 +75,11 @@ if (editingProduct) {
 
   return (
     <div>
-      {/* Header */}
+      {" "}
+      {/* Header */}{" "}
       <div className="flex justify-between items-center mb-6 p-4 bg-gray-100 rounded-lg">
-        <h1 className="text-2xl font-bold">📦 Stock</h1>
+        {" "}
+        <h1 className="text-2xl font-bold">📦 Stock</h1>{" "}
         <button
           onClick={() => {
             setEditingProduct(null);
@@ -84,10 +88,10 @@ if (editingProduct) {
           }}
           className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-lg text-sm"
         >
-          + Agregar
-        </button>
+          {" "}
+          + Agregar{" "}
+        </button>{" "}
       </div>
-
       {/* Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -151,7 +155,6 @@ if (editingProduct) {
           </div>
         </div>
       )}
-
       {/* TABLA — solo desktop */}
       <div className="hidden md:block">
         <table className="bg-white rounded-xl shadow overflow-hidden w-full">
@@ -224,7 +227,6 @@ if (editingProduct) {
           </tbody>
         </table>
       </div>
-
       {/* CARDS — solo móvil */}
       <div className="md:hidden space-y-3">
         {products.map((product) => {
@@ -287,5 +289,4 @@ if (editingProduct) {
     </div>
   );
 };
-
 export default StockPage;

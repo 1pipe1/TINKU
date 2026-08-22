@@ -10,13 +10,12 @@ import {
 type AuthUser = {
   uid: string;
   email: string | null;
-  role: "admin" | "seller" | "pending"; // optional role property
+  role: "admin" | "seller" | "pending";
 };
 
 type AuthState = {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  initAuth: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
 };
@@ -27,34 +26,33 @@ const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
 
-      initAuth: () => {
-        onAuthStateChanged(auth, (firebaseUser) => {
-          if (firebaseUser) {
-            set({
-              user: {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                role: "admin"
-              },
-              isAuthenticated: true,
-            });
-          } else {
-            set({ user: null, isAuthenticated: false });
-          }
-        });
-      },
-
       login: async (email: string, password: string) => {
-        const result = await signInWithEmailAndPassword(auth, email, password);
-        set({
-          user: {
-            uid: result.user.uid,
-            email: result.user.email,
-            role: "admin", // temporal para pruebas
-          },
-          isAuthenticated: true,
-        });
-        return true;
+        try {
+          const userCredential = await signInWithEmailAndPassword(
+            auth,
+            email.trim(),
+            password,
+          );
+          const firebaseUser = userCredential.user;
+
+          set({
+            user: {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              role: "admin",
+            },
+            isAuthenticated: true,
+          });
+
+          return true;
+        } catch (error: any) {
+          console.error(
+            "Error exacto de Firebase Auth:",
+            error.code,
+            error.message,
+          );
+          return false;
+        }
       },
 
       logout: async () => {
@@ -62,7 +60,9 @@ const useAuthStore = create<AuthState>()(
         set({ user: null, isAuthenticated: false });
       },
     }),
-    { name: "auth-storage" },
+    {
+      name: "auth-storage",
+    },
   ),
 );
 

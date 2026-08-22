@@ -8,6 +8,7 @@ import useCartStore from "../store/useCartStore";
 import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FC } from "react";
+
 const HomePage: FC = () => {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,7 @@ const HomePage: FC = () => {
   const activeDraftId = useCartStore((state) => state.activeDraftId);
   const clearActiveDraftId = useCartStore((state) => state.clearActiveDraftId);
 
+  // 1. Carga limpia de productos al montar
   useEffect(() => {
     const loadProducts = async () => {
       try {
@@ -33,6 +35,7 @@ const HomePage: FC = () => {
     loadProducts();
   }, [fetchProducts]);
 
+  // 2. Limpieza de borradores/drafts cuando el carrito se vacía
   useEffect(() => {
     if (!activeDraftId || cart.length > 0) return;
 
@@ -52,6 +55,7 @@ const HomePage: FC = () => {
     cleanupDraft();
   }, [activeDraftId, cart.length, clearActiveDraftId]);
 
+  // 3. Filtro de búsqueda por nombre o título
   const filteredProducts = products.filter((product: any) => {
     const title = product?.nombre || product?.title || product?.name || "";
     return title.toLowerCase().includes(search.toLowerCase());
@@ -67,7 +71,7 @@ const HomePage: FC = () => {
       </div>
     );
   }
-  console.log("Productos que llegaron a HomePage:", products);
+
   return (
     <div className="min-h-screen bg-[#F0F4F8] text-gray-900">
       <Navbar

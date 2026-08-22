@@ -7,7 +7,12 @@ const AuthPage = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const login = useAuthStore((state) => state.login);
+  const login = useAuthStore(
+    (state) =>
+      (state as unknown as {
+        login: (email: string, password: string) => Promise<void>;
+      }).login,
+  );
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

@@ -3,7 +3,9 @@ import AdminSidebar from "../components/organisms/AdminSidebar";
 import useAuthStore from "../store/useAuthStore";
 
 const AdminLayout = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isAuthenticated = useAuthStore((state) =>
+    Boolean((state as { isAuthenticated?: boolean }).isAuthenticated),
+  );
 
   if (!isAuthenticated) {
     return <Navigate to="/login" />;

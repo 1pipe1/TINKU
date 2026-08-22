@@ -31,10 +31,10 @@ const ProductCard = ({ product }: ProductCardProps) => {
       <div>
         {/* Renderizado condicional de imagen o placeholder */}
         <div className="h-32 flex items-center justify-center mb-4 bg-gray-50 rounded-lg">
-          {imageUrl ? (
+          {product.image && product.image.trim() !== "" ? (
             <img
-              src={imageUrl}
-              alt={displayTitle}
+              src={product.image}
+              alt={product.title || product.name || "Producto"}
               className="max-h-full max-w-full object-contain"
             />
           ) : (

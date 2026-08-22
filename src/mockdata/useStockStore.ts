@@ -6,35 +6,53 @@ import type { Product } from "../types/product";
 
 type StockState = {
   products: Product[];
-  fetchProducts: () => Promise<void>;
+  // 👇 AQUÍ ESTÁ EL TRUCO: Le decimos a TypeScript que 'uid' es un argumento opcional
+  fetchProducts: (uid?: string) => Promise<void>;
 };
 
 const useStockStore = create<StockState>()(
   persist(
     (set) => ({
       products: [],
-      fetchProducts: async () => {
+      fetchProducts: async (uid?: string) => {
         try {
-          // 1. Apuntamos a la colección 'productos' (en español)
-          const snapshot = await getDocs(collection(db, "productos"));
+          // Si no se recibe un UID, intenta obtenerlo del estado persistido de autenticación.
+          let persistedUid: string | undefined;
+          try {
+            const authStorage = localStorage.getItem("auth-storage");
+            const authState = authStorage ? JSON.parse(authStorage) : undefined;
+            persistedUid = authState?.state?.user?.uid;
+          } catch {
+            // El UID recibido por parámetro sigue siendo válido aunque el storage no pueda leerse.
+          }
 
-          // 2. Mapeamos las llaves de Firestore al tipo Product de React
+          const activeUid = uid || persistedUid;
+
+          if (!activeUid) {
+            console.warn("No se encontró un UID válido para cargar productos.");
+            return;
+          }
+
+          // Consultamos la subcolección del usuario activo en Firestore
+          const snapshot = await getDocs(
+            collection(db, "usuarios", activeUid, "productos"),
+          );
+
           const products = snapshot.docs.map((docSnap) => {
             const data = docSnap.data();
             return {
               id: docSnap.id,
-              name: data.nombre || data.name || "",
-              title: data.nombre || data.title || "",
-              price: data.precio || data.price || 0,
-              cost: data.costo || 0,
-              stock: data.stock || 0,
-              category: data.categoria || "General",
               sku: data.sku || docSnap.id,
-              ...data, // Mantiene cualquier otro campo existente
+              title: data.nombre || data.title || "",
+              name: data.nombre || data.name || "",
+              price: data.precio ?? data.price ?? 0,
+              cost: data.costo ?? 0,
+              stock: data.stock ?? 20,
+              category: data.categoria || "General",
+              image: data.image || "",
             };
           }) as unknown as Product[];
 
-          console.log("Productos cargados desde Firestore:", products);
           set({ products });
         } catch (error) {
           console.error("Error fetching products from Firestore:", error);

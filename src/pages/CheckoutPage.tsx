@@ -24,7 +24,10 @@ const CheckoutPage: FC = () => {
   const params = new URLSearchParams(location.search);
   const resumeId = params.get("resumeId");
 
-  const user = useAuthStore((state) => state.user);
+  // El store está tipado como StockState, aunque expone el usuario en tiempo de ejecución.
+  const user = useAuthStore((state) =>
+    (state as typeof state & { user?: { uid?: string; email?: string } }).user
+  );
   const cart = useCartStore((state) => state.cart);
   const getTotalPrice = useCartStore((state) => state.getTotalPrice);
   const clearCart = useCartStore((state) => state.clearCart);
@@ -100,28 +103,32 @@ const CheckoutPage: FC = () => {
       // Si el internet parpadea o alguien compra al mismo tiempo, Firestore reintentará.
       // Si un producto se queda sin stock suficiente, la transacción se cancela por completo.
       await runTransaction(db, async (transaction) => {
-        const productUpdates = [];
+        const productUpdates: Array<{
+          ref: ReturnType<typeof doc>;
+          newStock: number;
+        }> = [];
 
-        // 1. Fase de Lectura (Obligatoria antes de escribir en una transacción)
+        // 1. Fase de Lectura dentro de runTransaction
         for (const item of cart) {
-          const productRef = doc(db, "productos", item.id); // 'productos' en español
+          // Apunta a la colección global 'productos'
+          const productRef = doc(db, "productos", item.id); // <--- Colección 'productos'
           const productSnapshot = await transaction.get(productRef);
 
-          if (!productSnapshot.exists()) {
-            throw new Error(`El producto "${item.title || item.name}" no existe en el inventario.`);
+          if (productSnapshot.exists()) {
+            const productData = productSnapshot.data();
+            const currentStock = productData.stock ?? 0;
+
+            if (currentStock < item.quantity) {
+              throw new Error(
+                `Stock insuficiente para ${item.title || item.name || "el producto"}`,
+              );
+            }
+
+            productUpdates.push({
+              ref: productRef,
+              newStock: currentStock - item.quantity,
+            });
           }
-
-          const productData = productSnapshot.data();
-          const currentStock = productData.stock ?? 0;
-
-          if (currentStock < item.quantity) {
-            throw new Error(`¡Sin stock para ${item.title || item.name}! Quedan ${currentStock} un.`);
-          }
-
-          productUpdates.push({
-            ref: productRef,
-            newStock: currentStock - item.quantity,
-          });
         }
 
         // 2. Fase de Escritura (Actualizar inventarios)
