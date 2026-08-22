@@ -44,24 +44,24 @@ const StockPage = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este producto?")) return;
-    await deleteDoc(doc(db, "products", id));
+    await deleteDoc(doc(db, "productos", id));
     fetchProducts();
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const data = {
-      title: form.title,
-      category: form.category,
-      price: parseFloat(form.price),
-      stock: parseInt(form.stock),
-      image: form.image,
-    };
-    if (editingProduct) {
-      await updateDoc(doc(db, "products", editingProduct.id), data);
-    } else {
-      await addDoc(collection(db, "products"), data);
-    }
+const data = {
+  nombre: form.title, // Firestore usa 'nombre'
+  categoria: form.category, // Firestore usa 'categoria'
+  precio: parseFloat(form.price), // Firestore usa 'precio'
+  stock: parseInt(form.stock, 10) || 0,
+  image: form.image,
+};
+if (editingProduct) {
+  await updateDoc(doc(db, "productos", editingProduct.id), data); // Colección en español
+} else {
+  await addDoc(collection(db, "productos"), data); // Colección en español
+}
     setShowForm(false);
     setEditingProduct(null);
     setForm(emptyForm);

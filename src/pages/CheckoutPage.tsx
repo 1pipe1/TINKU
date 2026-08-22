@@ -3,19 +3,17 @@ import useCartStore from "../store/useCartStore";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   collection,
-  addDoc,
   serverTimestamp,
   doc,
-  getDoc,
-  updateDoc,
   deleteDoc,
+  runTransaction
 } from "firebase/firestore";
 import { db } from "../firebase";
 import useAuthStore from "../store/useAuthStore";
 import CashPaymentModal from "../components/organisms/CashPaymentModal";
 import type { FC } from "react";
 
-const CheckoutPage = () => {
+const CheckoutPage: FC = () => {
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer">("cash");
@@ -41,10 +39,12 @@ const CheckoutPage = () => {
     const loadDraft = async () => {
       try {
         const draftRef = doc(db, "draftOrders", resumeId);
-        const snap = await getDoc(draftRef);
+        const snap = await runTransaction(db, async (transaction) => {
+          return await transaction.get(draftRef);
+        });
         if (snap.exists()) {
           const data = snap.data();
-          const items = (data.items || []).map((it) => ({
+          const items = (data.items || []).map((it: any) => ({
             id: it.id,
             title: it.title || it.name,
             price: it.price || 0,
@@ -69,7 +69,7 @@ const CheckoutPage = () => {
       } catch (error) {
         console.error(
           "Error deleting resumed draft after cart was cleared:",
-          error,
+          error
         );
       } finally {
         clearActiveDraftId();
@@ -79,7 +79,7 @@ const CheckoutPage = () => {
     cleanupDraft();
   }, [activeDraftId, cart.length, clearActiveDraftId]);
 
-  const finalizePurchase = async (cashPaidAmount = null) => {
+  const finalizePurchase = async (cashPaidAmount: number | null = null) => {
     setError("");
     setLoading(true);
     try {
@@ -89,46 +89,70 @@ const CheckoutPage = () => {
         cashPaidAmount < totalPrice
       ) {
         setError("El monto recibido no alcanza el total");
+        setLoading(false);
         return;
       }
 
-await addDoc(collection(db, "orders"), {
-  customerName: "Cliente",
-  paymentMethod,
-  cashPaid: paymentMethod === "cash" ? cashPaidAmount : null,
-  change:
-    paymentMethod === "cash" && cashPaidAmount !== null
-      ? cashPaidAmount - totalPrice
-      : 0,
-  items: cart.map((item) => ({
-    id: item.id,
-    title: item.title || item.name || (item as any).nombre || "",
-    price: item.price,
-    quantity: item.quantity,
-    image: item.image || "",
-    customerName: "Cliente",
-    soldBy: user?.email || "guest",
-  })),
-  total: totalPrice,
-  status: "completed",
-  createdAt: serverTimestamp(),
-});
+      // ==========================================
+      // 🧱 ESTRUCTURA ANTISÍSMICA (runTransaction)
+      // ==========================================
+      // Ejecutamos la reducción de stock y la creación de la orden de forma ATÓMICA.
+      // Si el internet parpadea o alguien compra al mismo tiempo, Firestore reintentará.
+      // Si un producto se queda sin stock suficiente, la transacción se cancela por completo.
+      await runTransaction(db, async (transaction) => {
+        const productUpdates = [];
 
-   for (const item of cart) {
-     // CAMBIO: Se cambia "products" por "productos"
-     const productRef = doc(db, "productos", item.id);
-     const productSnapshot = await getDoc(productRef);
+        // 1. Fase de Lectura (Obligatoria antes de escribir en una transacción)
+        for (const item of cart) {
+          const productRef = doc(db, "productos", item.id); // 'productos' en español
+          const productSnapshot = await transaction.get(productRef);
 
-     if (productSnapshot.exists()) {
-       const productData = productSnapshot.data();
-       const currentStock = productData.stock ?? 0;
+          if (!productSnapshot.exists()) {
+            throw new Error(`El producto "${item.title || item.name}" no existe en el inventario.`);
+          }
 
-       await updateDoc(productRef, {
-         stock:
-           currentStock >= item.quantity ? currentStock - item.quantity : 0,
-       });
-     }
-   }
+          const productData = productSnapshot.data();
+          const currentStock = productData.stock ?? 0;
+
+          if (currentStock < item.quantity) {
+            throw new Error(`¡Sin stock para ${item.title || item.name}! Quedan ${currentStock} un.`);
+          }
+
+          productUpdates.push({
+            ref: productRef,
+            newStock: currentStock - item.quantity,
+          });
+        }
+
+        // 2. Fase de Escritura (Actualizar inventarios)
+        productUpdates.forEach(({ ref, newStock }) => {
+          transaction.update(ref, { stock: newStock });
+        });
+
+        // 3. Crear la orden de venta de forma atómica
+        const newOrderRef = doc(collection(db, "orders"));
+        transaction.set(newOrderRef, {
+          customerName: "Cliente",
+          paymentMethod,
+          cashPaid: paymentMethod === "cash" ? cashPaidAmount : null,
+          change:
+            paymentMethod === "cash" && cashPaidAmount !== null
+              ? cashPaidAmount - totalPrice
+              : 0,
+          items: cart.map((item) => ({
+            id: item.id,
+            title: item.title || item.name || "Producto sin nombre",
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image || "",
+            customerName: "Cliente",
+            soldBy: user?.email || "guest",
+          })),
+          total: totalPrice,
+          status: "completed",
+          createdAt: serverTimestamp(),
+        });
+      });
 
       // Si venimos reanudando una venta, borrar el draft correspondiente
       if (resumeId) {
@@ -142,8 +166,8 @@ await addDoc(collection(db, "orders"), {
       clearActiveDraftId();
       clearCart();
       setPurchaseSuccess(true);
-    } catch (error) {
-      setError("Error al guardar la orden. Intenta nuevamente.");
+    } catch (error: any) {
+      setError(error.message || "Error al guardar la orden. Intenta nuevamente.");
       console.error("Error saving order:", error);
     } finally {
       setLoading(false);
@@ -151,43 +175,46 @@ await addDoc(collection(db, "orders"), {
     }
   };
 
-const handleConfirmPurchase = async (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setError("");
+  const handleConfirmPurchase = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
 
-  if (paymentMethod === "cash") {
-    setShowCashModal(true);
-    return;
-  }
+    if (paymentMethod === "cash") {
+      setShowCashModal(true);
+      return;
+    }
 
-  await finalizePurchase();
-};
+    await finalizePurchase();
+  };
 
-const handleSuspendSale = async () => {
-  setError("");
+  const handleSuspendSale = async () => {
+    setError("");
 
-  if (cart.length === 0) {
-    setError("No hay productos en el carrito");
-    return;
-  }
+    if (cart.length === 0) {
+      setError("No hay productos en el carrito");
+      return;
+    }
 
     setLoading(true);
     try {
-      await addDoc(collection(db, "draftOrders"), {
-        customerName: "".trim() || "",
-        paymentMethod,
-        items: cart.map((item) => ({
-          id: item.id,
-          title: item.title || item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image || "",
-        })),
-        total: totalPrice,
-        status: "suspended",
-        createdBy: user?.email || "guest",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      const newDraftRef = doc(collection(db, "draftOrders"));
+      await runTransaction(db, async (transaction) => {
+        transaction.set(newDraftRef, {
+          customerName: "".trim() || "",
+          paymentMethod,
+          items: cart.map((item) => ({
+            id: item.id,
+            title: item.title || item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image || "",
+          })),
+          total: totalPrice,
+          status: "suspended",
+          createdBy: user?.email || "guest",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
       });
 
       if (activeDraftId) {
@@ -209,7 +236,6 @@ const handleSuspendSale = async () => {
     }
   };
 
-  // ✅ Pantalla de éxito — clara y cálida
   if (purchaseSuccess) {
     return (
       <div className="min-h-screen bg-orange-50 flex items-center justify-center p-4">
@@ -232,7 +258,6 @@ const handleSuspendSale = async () => {
     );
   }
 
-  // 🛒 Carrito vacío
   if (cart.length === 0) {
     return (
       <div className="min-h-screen bg-orange-50 flex items-center justify-center p-4">
@@ -255,7 +280,6 @@ const handleSuspendSale = async () => {
     );
   }
 
-  // 📋 Resumen de compra
   return (
     <div className="min-h-screen bg-orange-50 p-6">
       <div className="max-w-2xl mx-auto">
@@ -265,7 +289,6 @@ const handleSuspendSale = async () => {
 
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-4">
           <form onSubmit={handleConfirmPurchase} className="space-y-6">
-            {/* Método de pago */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Método de pago *
@@ -298,28 +321,23 @@ const handleSuspendSale = async () => {
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
 
-            {/* Items del carrito */}
             <div className="space-y-4 mb-6">
               {cart.map((item) => (
                 <div
                   key={item.id}
                   className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl"
                 >
-                  {/* Imagen del producto */}
                   <img
-                    src={item.image || null}
+                    src={item.image || undefined}
                     alt={item.title || item.name}
                     className="w-16 h-16 object-contain rounded-lg bg-white border border-gray-100"
                   />
-
-                  {/* Info */}
                   <div className="flex-1">
                     <p className="font-semibold text-gray-800 text-base leading-tight">
                       {item.title || item.name}
@@ -331,8 +349,6 @@ const handleSuspendSale = async () => {
                       </span>
                     </p>
                   </div>
-
-                  {/* Precio */}
                   <div className="text-right">
                     <p className="font-bold text-orange-500 text-lg">
                       ${(item.price * item.quantity).toLocaleString()}
@@ -345,7 +361,6 @@ const handleSuspendSale = async () => {
               ))}
             </div>
 
-            {/* Total */}
             <div className="border-t border-gray-200 pt-4 flex justify-between items-center mb-6">
               <span className="text-xl font-bold text-gray-700">
                 Total a pagar:
@@ -355,7 +370,6 @@ const handleSuspendSale = async () => {
               </span>
             </div>
 
-            {/* Botón confirmar */}
             <button
               type="submit"
               disabled={loading}
@@ -370,6 +384,7 @@ const handleSuspendSale = async () => {
               onClose={() => setShowCashModal(false)}
               onConfirm={(cashAmount) => finalizePurchase(cashAmount)}
             />
+
             <button
               type="button"
               onClick={handleSuspendSale}
@@ -379,7 +394,6 @@ const handleSuspendSale = async () => {
               ⏸️ Suspender venta
             </button>
 
-            {/* Botón cancelar */}
             <button
               type="button"
               onClick={() => navigate("/")}
