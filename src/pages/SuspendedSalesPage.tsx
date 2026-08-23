@@ -77,7 +77,7 @@ const handleCancel = async (draftId: string) => {
   if (!confirmCancel) return;
   setLoading(true);
   try {
-    await deleteDoc(doc(db, "draftOrders", draftId));
+    await deleteDoc(doc(db,"usuarios", "draftOrders", draftId));
   } catch (e) {
     console.error("Error deleting draft:", e);
     alert("No se pudo cancelar la orden. Revisa la consola.");

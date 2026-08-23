@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  runTransaction,
+} from "firebase/firestore";
 import { db } from "../firebase";
-
+import useAuthStore from "../store/useAuthStore";
 interface OrderItem {
   id: string;
   name?: string;
@@ -37,19 +43,28 @@ const SalesPage = () => {
   const [filterDate, setFilterDate] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "today">("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "orders"), (snapshot) => {
+    if (!user?.uid) return; // 🛡️ Evita consultas antes de que cargue la sesión
+
+    // 🛡️ MULTI-TENANT: Apuntamos exclusivamente a las órdenes de este usuario
+    const ordersRef = collection(db, "usuarios", user.uid, "orders");
+
+    const unsub = onSnapshot(ordersRef, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Order[];
       setOrders(data);
     });
-    return () => unsub();
-  }, []);
 
-  const totalVentas = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+    return () => unsub();
+  }, [user?.uid]); // 🔄 Se vuelve a suscribir si cambia de usuario, []);
+
+  const totalVentas = orders
+    .filter((o) => o.status !== "canceled")
+    .reduce((sum, o) => sum + (o.total || 0), 0);
   const todayString = getLocalDateString(new Date());
   const ordenesHoy = orders.filter((o) => {
     const date = getOrderDate(o.createdAt);
@@ -86,17 +101,74 @@ const SalesPage = () => {
 
   const handleCancelOrder = async (orderId: string) => {
     const confirmed = window.confirm(
-      "¿Estás seguro de que deseas cancelar esta orden?",
+      "¿Estás seguro de que deseas cancelar esta orden y devolver el stock al inventario?",
     );
     if (!confirmed) return;
 
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        status: "cancelled",
+      // ==========================================
+      // 🧱 TRANSACCIÓN ATÓMICA DE DEVOLUCIÓN
+      // ==========================================
+      await runTransaction(db, async (transaction) => {
+        const orderRef = doc(db, "usuarios", user.uid, "orders", orderId);
+        const orderSnap = await transaction.get(orderRef);
+
+        if (!orderSnap.exists()) {
+          throw new Error("La orden que intentas cancelar no existe.");
+        }
+
+        const orderData = orderSnap.data();
+
+        // Evitamos cancelar una orden que ya está cancelada
+        if (orderData.status === "canceled") {
+          throw new Error("Esta orden ya ha sido cancelada previamente.");
+        }
+
+        const items = orderData.items || [];
+        const productUpdates: Array<{
+          ref: ReturnType<typeof doc>;
+          newStock: number;
+        }> = [];
+
+        // 1. Fase de Lectura: Consultamos el stock actual de cada producto de la orden
+        for (const item of items) {
+          const productRef = doc(
+            db,
+            "usuarios",
+            user.uid,
+            "productos",
+            item.id,
+          );
+          const productSnap = await transaction.get(productRef);
+
+          if (productSnap.exists()) {
+            const productData = productSnap.data();
+            const currentStock = productData.stock ?? 0;
+
+            productUpdates.push({
+              ref: productRef,
+              newStock: currentStock + item.quantity, // 🔄 ¡Sumamos de nuevo lo vendido!
+            });
+          }
+        }
+
+        // 2. Fase de Escritura: Actualizamos los inventarios con el stock devuelto
+        productUpdates.forEach(({ ref, newStock }) => {
+          transaction.update(ref, { stock: newStock });
+        });
+
+        // 3. Fase de Escritura: Marcamos la orden como cancelada
+        transaction.update(orderRef, { status: "canceled" });
       });
-    } catch (error) {
-      console.error("Error cancelling order:", error);
-      alert("Error al cancelar la orden. Intenta nuevamente.");
+
+      alert(
+        "✅ ¡Orden cancelada con éxito! El dinero se restó y el stock fue devuelto.",
+      );
+    } catch (error: any) {
+      console.error("Error al cancelar la orden:", error);
+      alert(
+        error.message || "No se pudo cancelar la orden. Intenta nuevamente.",
+      );
     }
   };
 
@@ -303,7 +375,8 @@ const SalesPage = () => {
                     "—"}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  {getOrderDate(selectedOrder.createdAt)?.toLocaleString() || "—"}
+                  {getOrderDate(selectedOrder.createdAt)?.toLocaleString() ||
+                    "—"}
                 </p>
               </div>
               <button
@@ -318,32 +391,33 @@ const SalesPage = () => {
             <div className="p-5 flex flex-col gap-3">
               {selectedOrder.items?.length ? (
                 selectedOrder.items.map((item) => {
-                 const itemName = item.title || item.name || "Producto sin nombre";
+                  const itemName =
+                    item.title || item.name || "Producto sin nombre";
 
-                 return (
-                   <div key={item.id} className="flex items-center gap-3">
-                     {item.image && (
-                       <img
-                         src={item.image}
-                         alt={itemName}
-                         className="w-12 h-12 object-contain rounded-lg border border-gray-100"
-                       />
-                     )}
-                     <div className="flex-1">
-                       <p className="text-sm font-medium">{itemName}</p>
-                       <p className="text-xs text-gray-400">
-                         {item.quantity} × ${item.price?.toFixed(0)}
-                       </p>
-                     </div>
-                     <p className="text-sm font-semibold text-green-600">
-                       $
-                       {(item.price * item.quantity)
-                         .toFixed(0)
-                         .replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                     </p>
-                   </div>
-                 );
-               })
+                  return (
+                    <div key={item.id} className="flex items-center gap-3">
+                      {item.image && (
+                        <img
+                          src={item.image}
+                          alt={itemName}
+                          className="w-12 h-12 object-contain rounded-lg border border-gray-100"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{itemName}</p>
+                        <p className="text-xs text-gray-400">
+                          {item.quantity} × ${item.price?.toFixed(0)}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-green-600">
+                        $
+                        {(item.price * item.quantity)
+                          .toFixed(0)
+                          .replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                      </p>
+                    </div>
+                  );
+                })
               ) : (
                 <p className="text-sm text-gray-400 text-center py-4">
                   No hay items registrados

@@ -145,7 +145,7 @@ const CheckoutPage: FC = () => {
         });
 
         // 3. Registrar la orden de venta bajo la sesión del usuario
-        const newOrderRef = doc(collection(db, "orders"));
+        const newOrderRef = doc(collection(db, "usuarios", user.uid, "orders"));
         transaction.set(newOrderRef, {
           customerName: "Cliente",
           paymentMethod,
