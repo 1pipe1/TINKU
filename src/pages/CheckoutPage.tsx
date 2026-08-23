@@ -6,7 +6,7 @@ import {
   serverTimestamp,
   doc,
   deleteDoc,
-  runTransaction
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import useAuthStore from "../store/useAuthStore";
@@ -16,7 +16,9 @@ import type { FC } from "react";
 const CheckoutPage: FC = () => {
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer">(
+    "cash",
+  );
   const [error, setError] = useState("");
   const [showCashModal, setShowCashModal] = useState(false);
   const navigate = useNavigate();
@@ -24,10 +26,7 @@ const CheckoutPage: FC = () => {
   const params = new URLSearchParams(location.search);
   const resumeId = params.get("resumeId");
 
-  // El store está tipado como StockState, aunque expone el usuario en tiempo de ejecución.
-  const user = useAuthStore((state) =>
-    (state as typeof state & { user?: { uid?: string; email?: string } }).user
-  );
+  const user = useAuthStore((state) => state.user);
   const cart = useCartStore((state) => state.cart);
   const getTotalPrice = useCartStore((state) => state.getTotalPrice);
   const clearCart = useCartStore((state) => state.clearCart);
@@ -37,7 +36,6 @@ const CheckoutPage: FC = () => {
   const totalPrice = getTotalPrice();
 
   useEffect(() => {
-    // Si venimos reanudando una venta, cargar el draft en el carrito
     if (!resumeId) return;
     const loadDraft = async () => {
       try {
@@ -65,24 +63,27 @@ const CheckoutPage: FC = () => {
 
   useEffect(() => {
     if (!activeDraftId || cart.length > 0) return;
-
     const cleanupDraft = async () => {
       try {
         await deleteDoc(doc(db, "draftOrders", activeDraftId));
       } catch (error) {
         console.error(
           "Error deleting resumed draft after cart was cleared:",
-          error
+          error,
         );
       } finally {
         clearActiveDraftId();
       }
     };
-
     cleanupDraft();
   }, [activeDraftId, cart.length, clearActiveDraftId]);
 
   const finalizePurchase = async (cashPaidAmount: number | null = null) => {
+    if (!user?.uid) {
+      setError("Inicia sesión para poder procesar la compra.");
+      return;
+    }
+
     setError("");
     setLoading(true);
     try {
@@ -97,46 +98,53 @@ const CheckoutPage: FC = () => {
       }
 
       // ==========================================
-      // 🧱 ESTRUCTURA ANTISÍSMICA (runTransaction)
+      // 🧱 ESTRUCTURA MULTI-TENANT ANTISÍSMICA
       // ==========================================
-      // Ejecutamos la reducción de stock y la creación de la orden de forma ATÓMICA.
-      // Si el internet parpadea o alguien compra al mismo tiempo, Firestore reintentará.
-      // Si un producto se queda sin stock suficiente, la transacción se cancela por completo.
       await runTransaction(db, async (transaction) => {
         const productUpdates: Array<{
           ref: ReturnType<typeof doc>;
           newStock: number;
         }> = [];
 
-        // 1. Fase de Lectura dentro de runTransaction
+        // 1. Fase de Lectura (Obligatoria dentro de la carpeta del usuario activo)
         for (const item of cart) {
-          // Apunta a la colección global 'productos'
-          const productRef = doc(db, "productos", item.id); // <--- Colección 'productos'
+          // 🛡️ MULTI-TENANT: Apunta al inventario privado de este usuario
+          const productRef = doc(
+            db,
+            "usuarios",
+            user.uid,
+            "productos",
+            item.id,
+          );
           const productSnapshot = await transaction.get(productRef);
 
-          if (productSnapshot.exists()) {
-            const productData = productSnapshot.data();
-            const currentStock = productData.stock ?? 0;
-
-            if (currentStock < item.quantity) {
-              throw new Error(
-                `Stock insuficiente para ${item.title || item.name || "el producto"}`,
-              );
-            }
-
-            productUpdates.push({
-              ref: productRef,
-              newStock: currentStock - item.quantity,
-            });
+          if (!productSnapshot.exists()) {
+            throw new Error(
+              `El producto "${item.title || item.name}" no existe en tu inventario.`,
+            );
           }
+
+          const productData = productSnapshot.data();
+          const currentStock = productData.stock ?? 0;
+
+          if (currentStock < item.quantity) {
+            throw new Error(
+              `¡Sin stock suficiente para ${item.title || item.name}! Te quedan ${currentStock} un.`,
+            );
+          }
+
+          productUpdates.push({
+            ref: productRef,
+            newStock: currentStock - item.quantity,
+          });
         }
 
-        // 2. Fase de Escritura (Actualizar inventarios)
+        // 2. Fase de Escritura (Actualizar inventario privado del usuario)
         productUpdates.forEach(({ ref, newStock }) => {
           transaction.update(ref, { stock: newStock });
         });
 
-        // 3. Crear la orden de venta de forma atómica
+        // 3. Registrar la orden de venta bajo la sesión del usuario
         const newOrderRef = doc(collection(db, "orders"));
         transaction.set(newOrderRef, {
           customerName: "Cliente",
@@ -152,16 +160,17 @@ const CheckoutPage: FC = () => {
             price: item.price,
             quantity: item.quantity,
             image: item.image || "",
-            customerName: "Cliente",
-            soldBy: user?.email || "guest",
+            soldBy: user.email || "guest",
+            sellerUid: user.uid, // Guardamos la autoría de la venta
           })),
           total: totalPrice,
           status: "completed",
+          createdBy: user.uid, // La orden pertenece a esta tienda
           createdAt: serverTimestamp(),
         });
       });
 
-      // Si venimos reanudando una venta, borrar el draft correspondiente
+      // Si venimos reanudando una venta, borrar el borrador
       if (resumeId) {
         try {
           await deleteDoc(doc(db, "draftOrders", resumeId));
@@ -174,8 +183,11 @@ const CheckoutPage: FC = () => {
       clearCart();
       setPurchaseSuccess(true);
     } catch (error: any) {
-      setError(error.message || "Error al guardar la orden. Intenta nuevamente.");
-      console.error("Error saving order:", error);
+      setError(
+        error.message ||
+          "Error al procesar la transacción. Intenta nuevamente.",
+      );
+      console.error("Error saving order transaction:", error);
     } finally {
       setLoading(false);
       setShowCashModal(false);
@@ -202,12 +214,17 @@ const CheckoutPage: FC = () => {
       return;
     }
 
+    if (!user?.uid) {
+      setError("Inicia sesión para suspender ventas.");
+      return;
+    }
+
     setLoading(true);
     try {
       const newDraftRef = doc(collection(db, "draftOrders"));
       await runTransaction(db, async (transaction) => {
         transaction.set(newDraftRef, {
-          customerName: "".trim() || "",
+          customerName: "",
           paymentMethod,
           items: cart.map((item) => ({
             id: item.id,
@@ -218,7 +235,8 @@ const CheckoutPage: FC = () => {
           })),
           total: totalPrice,
           status: "suspended",
-          createdBy: user?.email || "guest",
+          createdBy: user.email || "guest",
+          createdByUid: user.uid,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -228,7 +246,7 @@ const CheckoutPage: FC = () => {
         try {
           await deleteDoc(doc(db, "draftOrders", activeDraftId));
         } catch (error) {
-          console.error("Error deleting previous resumed draft:", error);
+          console.error("Error deleting previous draft:", error);
         }
       }
 

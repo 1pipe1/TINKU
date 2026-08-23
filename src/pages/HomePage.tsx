@@ -22,18 +22,19 @@ const HomePage: FC = () => {
   const activeDraftId = useCartStore((state) => state.activeDraftId);
   const clearActiveDraftId = useCartStore((state) => state.clearActiveDraftId);
 
-  // 1. Carga limpia de productos al montar
+  // 1. Carga limpia de productos pasándole el UID privado
   useEffect(() => {
     const loadProducts = async () => {
+      if (!user?.uid) return;
       try {
-        await fetchProducts();
+        await fetchProducts(user.uid);
       } finally {
         setLoading(false);
       }
     };
 
     loadProducts();
-  }, [fetchProducts]);
+  }, [fetchProducts, user?.uid]);
 
   // 2. Limpieza de borradores/drafts cuando el carrito se vacía
   useEffect(() => {
@@ -43,10 +44,7 @@ const HomePage: FC = () => {
       try {
         await deleteDoc(doc(db, "draftOrders", activeDraftId));
       } catch (error) {
-        console.error(
-          "Error deleting resumed draft after cart was cleared:",
-          error,
-        );
+        console.error("Error deleting resumed draft after cart was cleared:", error);
       } finally {
         clearActiveDraftId();
       }
@@ -66,7 +64,7 @@ const HomePage: FC = () => {
       <div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center">
         <div className="text-center">
           <div className="text-4xl animate-spin mb-4">⏳</div>
-          <p className="text-gray-600">Cargando productos...</p>
+          <p className="text-gray-600">Cargando productos de tu tienda...</p>
         </div>
       </div>
     );
@@ -106,7 +104,7 @@ const HomePage: FC = () => {
             <p className="text-gray-600 text-lg">
               {search
                 ? `No se encontraron productos para "${search}"`
-                : "No hay productos disponibles"}
+                : "No hay productos disponibles en tu tienda todavía."}
             </p>
 
             {search && (

@@ -1,78 +1,100 @@
 import { useEffect, useState } from "react";
-import {
-  doc,
-  updateDoc,
-  deleteDoc,
-  addDoc,
-  collection,
-} from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, addDoc, collection } from "firebase/firestore";
 import { db } from "../firebase";
 import useStockStore from "../store/useStockStore";
+import useAuthStore from "../store/useAuthStore";
 import type { Product } from "../types/product";
+import useauthStore from "../store/useAuthStore";
 
-const emptyForm = { title: "", category: "", price: "", stock: "", image: "" };
+const emptyForm = {
+  title: "",
+  categoria: "",
+  precio: "",
+  stock: "",
+  image: "",
+};
+
 type StockForm = typeof emptyForm;
 
 const StockPage = () => {
   const products = useStockStore((state) => state.products);
   const fetchProducts = useStockStore((state) => state.fetchProducts);
+  const user = useAuthStore((state) => state.user);
+
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<StockForm>(emptyForm);
 
   useEffect(() => {
-    fetchProducts().then(() => setLoading(false));
-  }, [fetchProducts]);
+    if (user?.uid) {
+      fetchProducts(user.uid).then(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [fetchProducts, user?.uid]);
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setForm({
       title: product.title ?? product.name ?? "",
-      category: product.category ?? "",
-      price: String(product.price ?? 0),
-      stock: String(product.stock ?? 0),
+      categoria: product.category ?? "",
+      precio: String(product.price ?? 0),
+      stock: String(product.stock),
       image: product.image ?? "",
     });
     setShowForm(true);
   };
 
-  // Borrar producto
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este producto?")) return;
-    await deleteDoc(doc(db, "productos", id)); // <--- "productos"
-    fetchProducts();
+    if (!user?.uid) return;
+
+    try {
+      // 🛡️ MULTI-TENANT: Borra de la subcolección del usuario
+      await deleteDoc(doc(db, "usuarios", user.uid, "productos", id));
+      await fetchProducts(user.uid);
+    } catch (error) {
+      console.error("Error al eliminar producto:", error);
+      alert("No se pudo eliminar el producto.");
+    }
   };
 
-  // Editar / Crear producto
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!user?.uid) return;
+
+    // Mapeamos los campos al formato que guarda Firestore
     const data = {
-      title: form.title,
-      nombre: form.title,
-      category: form.category,
-      categoria: form.category,
-      price: parseFloat(form.price),
-      precio: parseFloat(form.price),
-      stock: parseInt(form.stock, 10),
-      image: form.image,
+      nombre: form.title.trim(),
+      categoria: form.categoria.trim() || "General",
+      precio: parseFloat(form.precio) || 0,
+      stock: parseInt(form.stock, 10) || 0,
+      image: form.image.trim(),
     };
 
-    if (editingProduct) {
-      await updateDoc(doc(db, "productos", editingProduct.id), data); // <--- "productos"
-    } else {
-      await addDoc(collection(db, "productos"), data); // <--- "productos"
-    }
-
-    setShowForm(false);
-    setEditingProduct(null);
-    setForm(emptyForm);
-    fetchProducts();
+     try {
+       if (editingProduct) {
+         await updateDoc(
+           doc(db, "usuarios", user.uid, "productos", editingProduct.id),
+           data,
+         );
+       } else {
+         await addDoc(collection(db, "usuarios", user.uid, "productos"), data);
+       }
+       
+       setShowForm(false);
+       setEditingProduct(null);
+       setForm(emptyForm);
+       await fetchProducts(user.uid);
+     } catch (error) {
+       console.error("Error al guardar producto:", error);
+       alert("Hubo un error al guardar los datos.");
+     }
   };
 
   if (loading)
     return <p className="p-8 text-gray-500">Cargando productos...</p>;
-
   return (
     <div>
       {" "}
@@ -110,16 +132,16 @@ const StockPage = () => {
               <input
                 className="w-full border rounded-lg p-2 text-sm"
                 placeholder="Categoría"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                value={form.categoria}
+                onChange={(e) => setForm({ ...form, categoria: e.target.value })}
                 required
               />
               <input
                 className="w-full border rounded-lg p-2 text-sm"
                 placeholder="Precio"
                 type="number"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                value={form.precio}
+                onChange={(e) => setForm({ ...form, precio: e.target.value })}
                 required
               />
               <input
@@ -263,8 +285,8 @@ const StockPage = () => {
                   {isOutOfStock
                     ? "🚫 Agotado"
                     : isLowStock
-                      ? `⚠️ ${product.stock} uds`
-                      : `${product.stock} uds`}
+                      ? `⚠️ ${product.stock} unds`
+                      : `${product.stock} unds`}
                 </span>
               </div>
 
