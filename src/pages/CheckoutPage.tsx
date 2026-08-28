@@ -21,6 +21,10 @@ const CheckoutPage: FC = () => {
   );
   const [error, setError] = useState("");
   const [showCashModal, setShowCashModal] = useState(false);
+
+  // 🌟 Estado local para controlar qué productos guardarán su precio editado en el catálogo
+  const [savePrices, setSavePrices] = useState<Record<string, boolean>>({});
+
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -97,17 +101,27 @@ const CheckoutPage: FC = () => {
         return;
       }
 
-      // ==========================================
+      // =========================================
       // 🧱 ESTRUCTURA MULTI-TENANT ANTISÍSMICA
-      // ==========================================
+      // =========================================
       await runTransaction(db, async (transaction) => {
         const productUpdates: Array<{
           ref: ReturnType<typeof doc>;
           newStock: number;
+          savePrice: boolean;
+          price: number;
         }> = [];
 
         // 1. Fase de Lectura (Obligatoria dentro de la carpeta del usuario activo)
         for (const item of cart) {
+          // 🛡️ Saltar control de stock para productos virtuales "Venta Rápida"
+          if (
+            item.id.startsWith("venta-rapida-") ||
+            item.id.startsWith("quick-")
+          ) {
+            continue;
+          }
+
           // 🛡️ MULTI-TENANT: Apunta al inventario privado de este usuario
           const productRef = doc(
             db,
@@ -136,15 +150,22 @@ const CheckoutPage: FC = () => {
           productUpdates.push({
             ref: productRef,
             newStock: currentStock - item.quantity,
+            savePrice: !!savePrices[item.id],
+            price: item.price,
           });
         }
 
-        // 2. Fase de Escritura (Actualizar inventario privado del usuario)
-        productUpdates.forEach(({ ref, newStock }) => {
-          transaction.update(ref, { stock: newStock });
+        // 2. Fase de Escritura (Actualizar inventario privado del usuario + auto-guardar precios nuevos)
+        productUpdates.forEach(({ ref, newStock, savePrice, price }) => {
+          const updateData: any = { stock: newStock };
+          if (savePrice) {
+            updateData.precio = price; // Guardar en ambos formatos para compatibilidad
+            updateData.price = price;
+          }
+          transaction.update(ref, updateData);
         });
 
-        // 3. Registrar la orden de venta bajo la sesión del usuario
+        // 3. Registrar la orden de venta bajo la sesión del usuario (MULTI-TENANT)
         const newOrderRef = doc(collection(db, "usuarios", user.uid, "orders"));
         transaction.set(newOrderRef, {
           customerName: "Cliente",
@@ -161,11 +182,11 @@ const CheckoutPage: FC = () => {
             quantity: item.quantity,
             image: item.image || "",
             soldBy: user.email || "guest",
-            sellerUid: user.uid, // Guardamos la autoría de la venta
+            sellerUid: user.uid,
           })),
           total: totalPrice,
           status: "completed",
-          createdBy: user.uid, // La orden pertenece a esta tienda
+          createdBy: user.uid,
           createdAt: serverTimestamp(),
         });
       });
@@ -353,37 +374,83 @@ const CheckoutPage: FC = () => {
             )}
 
             <div className="space-y-4 mb-6">
-              {cart.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl"
-                >
-                  <img
-                    src={item.image || undefined}
-                    alt={item.title || item.name}
-                    className="w-16 h-16 object-contain rounded-lg bg-white border border-gray-100"
-                  />
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-800 text-base leading-tight">
-                      {item.title || item.name}
-                    </p>
-                    <p className="text-gray-500 text-sm mt-1">
-                      Cantidad:{" "}
-                      <span className="font-bold text-gray-700">
-                        {item.quantity}
-                      </span>
-                    </p>
+              {cart.map((item) => {
+                const isVirtual =
+                  item.id.startsWith("venta-rapida-") ||
+                  item.id.startsWith("quick-");
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl"
+                  >
+                    <div className="w-16 h-16 flex items-center justify-center rounded-lg bg-white border border-gray-100">
+                      {item.image && item.image.trim() !== "" ? (
+                        <img
+                          src={item.image}
+                          alt={item.title || item.name}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-3xl">
+                          {isVirtual ? "⚡" : "📦"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800 text-base leading-tight">
+                        {item.title || item.name}
+                      </p>
+                      <p className="text-gray-500 text-sm mt-1">
+                        Cantidad:{" "}
+                        <span className="font-bold text-gray-700">
+                          {item.quantity}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-right flex flex-col justify-center items-end">
+                      <p className="font-bold text-orange-500 text-lg">
+                        ${(item.price * item.quantity).toLocaleString()}
+                      </p>
+                      <div className="flex items-center gap-1 mt-1 justify-end">
+                        <span className="text-gray-500 text-xs">$</span>
+                        <input
+                          type="number"
+                          value={item.price}
+                          onChange={(e) => {
+                            const newPrice = parseFloat(e.target.value) || 0;
+                            const updatedCart = cart.map((it) =>
+                              it.id === item.id
+                                ? { ...it, price: newPrice }
+                                : it,
+                            );
+                            setCart(updatedCart);
+                          }}
+                          className="w-20 text-right border rounded px-1.5 py-0.5 text-xs font-bold text-gray-700 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                        />
+                        <span className="text-gray-500 text-xs">c/u</span>
+                      </div>
+
+                      {/* Mostrar checkbox de guardar únicamente para productos reales */}
+                      {!isVirtual && (
+                        <label className="flex items-center gap-1.5 justify-end mt-2 text-[10px] text-gray-400 cursor-pointer hover:text-orange-500 transition-colors select-none">
+                          <input
+                            type="checkbox"
+                            checked={!!savePrices[item.id]}
+                            onChange={(e) => {
+                              setSavePrices({
+                                ...savePrices,
+                                [item.id]: e.target.checked,
+                              });
+                            }}
+                            className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 w-3 h-3"
+                          />
+                          <span>¿Actualizar precio base?</span>
+                        </label>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-orange-500 text-lg">
-                      ${(item.price * item.quantity).toLocaleString()}
-                    </p>
-                    <p className="text-gray-500 text-xs">
-                      ${item.price.toLocaleString()} c/u
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="border-t border-gray-200 pt-4 flex justify-between items-center mb-6">

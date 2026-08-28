@@ -3,11 +3,14 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
 import useStockStore from "../store/useStockStore";
+import useAuthStore from "../store/useAuthStore";
+
 type Order = {
   id: string;
   total?: number;
+  paymentMethod?: "cash" | "transfer";
+  status?: string;
   createdAt?: { toDate: () => Date };
-  // puedes añadir más campos si los usas luego
 };
 
 const DashboardPage = () => {
@@ -16,104 +19,238 @@ const DashboardPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const auth = getAuth();
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     const loadData = async () => {
-      await fetchProducts();
-      const snapshot = await getDocs(collection(db, "orders"));
+      const uid = user?.uid || user?.uid; // 👈 Cambiamos el auth mudo por el user reactivo
+      if (!uid) return; // Si Firebase aún no inicializa el usuario al refrescar, simplemente esperamos en silencio...
+
+      // 2. En cuanto useAuthStore se entera de quién es, carga todo lo de este tendero
+      await fetchProducts(uid);
+      const snapshot = await getDocs(collection(db, "usuarios", uid, "orders"));
       const data: Order[] = snapshot.docs.map((docSnap) => ({
         id: docSnap.id,
         ...docSnap.data(),
       })) as Order[];
+
       setOrders(data);
-      setLoading(false);
+      setLoading(false); // 👈 ¡Y apagamos el spinner de una!
     };
+
     loadData();
-  }, [fetchProducts]);
+  }, [fetchProducts, user?.uid, user?.uid]); // 👈 ¡LA CLAVE! Se vuelve a disparar en el milis
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (!user) {
-        window.location.href = "/login";
+        window.location.href = "/login"; // Redirige al login si el usuario no está autenticado
       }
     });
     return () => unsubscribe();
   }, []);
 
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+  // --- MÉTODOS DE FORMATEO ---
+  const formatMoney = (val: number) => {
+    return `$${val.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+  };
+
+  // --- CÁLCULOS DE INVENTARIO ---
   const totalProducts = products.length;
   const inventoryValue = products.reduce(
-    (sum, p) => sum + p.price * p.stock,
+    (sum, p) => sum + (p.price ?? 0) * (p.stock ?? 0),
     0,
   );
-  const categories = [...new Set(products.map((p) => p.category))].length;
+  const categories = [...new Set(products.map((p) => p.category || "General"))]
+    .length;
 
-  const metrics = [
-    {
-      label: "Historico Ventas",
-      value: orders.length,
-      icon: "🧾",
-      color: "bg-blue-500",
-    },
-    {
-      label: "Ingresos Totales",
-      value: `$${totalRevenue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`,
-      icon: "💰",
-      color: "bg-green-500",
-    },
-    {
-      label: "Productos",
-      value: totalProducts,
-      icon: "📦",
-      color: "bg-orange-500",
-    },
-    {
-      label: "Valor Inventario",
-      value: `$${inventoryValue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`,
-      icon: "🏪",
-      color: "bg-purple-500",
-    },
-    {
-      label: "Categorías",
-      value: categories,
-      icon: "🏷️",
-      color: "bg-pink-500",
-    },
-    {
-      label: "Órdenes Hoy",
-      value: orders.filter((o) => {
-        if (!o.createdAt) return false;
-        const date = o.createdAt.toDate();
-        return date.toDateString() === new Date().toDateString();
-      }).length,
-      icon: "📅",
-      color: "bg-yellow-500",
-    },
-  ];
+  // --- CÁLCULOS DE VENTAS ---
+  // Filtramos solo órdenes completadas (ignorando canceladas si las hay)
+  const activeOrders = orders.filter((o) => o.status !== "canceled");
+  const totalRevenue = activeOrders.reduce((sum, o) => sum + (o.total || 0), 0);
 
-  if (loading)
-    return <p className="p-8 text-gray-500">Cargando dashboard...</p>;
+  // --- FILTRO DE HOY (CON CORTE OPERATIVO DE LAS 4:00 AM) ---
+  // El día operativo corre corrido hasta las 4:00 AM del día siguiente.
+  const getOperationalDateString = (date: Date) => {
+    const shifted = new Date(date.getTime() - 4 * 60 * 60 * 1000); // Restamos 4 horas
+    return shifted.toDateString();
+  };
+
+  const currentOperationalDay = getOperationalDateString(new Date());
+
+  const todayOrders = activeOrders.filter((o) => {
+    if (!o.createdAt) return false;
+    const date = o.createdAt.toDate();
+    return getOperationalDateString(date) === currentOperationalDay;
+  });
+
+  // --- EFECTIVO VS TRANSFERENCIA DE HOY ---
+  const cashToday = todayOrders
+    .filter((o) => o.paymentMethod === "cash")
+    .reduce((sum, o) => sum + (o.total || 0), 0);
+
+  const transferToday = todayOrders
+    .filter((o) => o.paymentMethod === "transfer")
+    .reduce((sum, o) => sum + (o.total || 0), 0);
+
+  const totalToday = cashToday + transferToday;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl animate-spin mb-4">⏳</div>
+          <p className="text-gray-600 font-semibold">
+            Cargando dashboard de TINKU...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-8 text-gray-800">📊 Dashboard</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {metrics.map((m) => (
-          <div
-            key={m.label}
-            className="bg-white rounded-xl shadow p-6 flex items-center gap-4"
-          >
-            <div
-              className={`${m.color} text-white text-3xl w-14 h-14 rounded-full flex items-center justify-center`}
-            >
-              {m.icon}
+    <div className="p-4 md:p-8 bg-[#F0F4F8] min-h-screen">
+      {/* Encabezado Principal */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+          <h1 className="text-3xl font-extrabold text-gray-800 flex items-center gap-2">
+            📊 Mi Negocio
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            El control financiero de tu tienda en tiempo real.
+          </p>
+        </div>
+        <div className="text-right flex flex-col items-end gap-1">
+          <span className="text-xs font-semibold text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
+            ● Caja Abierta
+          </span>
+          <span className="text-[10px] text-gray-400 font-medium">
+            Jornada de 4:00 AM a 4:00 AM
+          </span>
+        </div>
+      </div>
+
+      {/* 💵 SECCIÓN DESTACADA: CUADRE DE CAJA DE HOY (LA IDEA DE MAMÁ) */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+            🏪 Cuadre de Caja de Hoy
+          </h2>
+          <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded">
+            Corte: 4:00 AM ⏰
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Tarjeta Efectivo */}
+          <div className="bg-white rounded-2xl shadow-sm border-l-4 border-emerald-500 p-6 flex items-center gap-4 hover:shadow-md transition-shadow">
+            <div className="bg-emerald-50 text-emerald-600 text-3xl w-14 h-14 rounded-full flex items-center justify-center border border-emerald-100">
+              💵
             </div>
             <div>
-              <p className="text-gray-500 text-sm">{m.label}</p>
-              <p className="text-2xl font-bold text-gray-800">{m.value}</p>
+              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">
+                Efectivo (En Cajón)
+              </p>
+              <p className="text-2xl font-black text-gray-800 mt-1">
+                {formatMoney(cashToday)}
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                Plata física en monedas y billetes
+              </p>
             </div>
           </div>
-        ))}
+
+          {/* Tarjeta Transferencia */}
+          <div className="bg-white rounded-2xl shadow-sm border-l-4 border-blue-500 p-6 flex items-center gap-4 hover:shadow-md transition-shadow">
+            <div className="bg-blue-50 text-blue-600 text-3xl w-14 h-14 rounded-full flex items-center justify-center border border-blue-100">
+              🏦
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">
+                Transferencia (Nequi/Daviplata)
+              </p>
+              <p className="text-2xl font-black text-gray-800 mt-1">
+                {formatMoney(transferToday)}
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                Plata digital en el banco. Bancolombia/Nequi/Daviplata
+              </p>
+            </div>
+          </div>
+
+          {/* Tarjeta Total de Hoy */}
+          <div className="bg-white rounded-2xl shadow-sm border-l-4 border-orange-500 p-6 flex items-center gap-4 hover:shadow-md transition-shadow">
+            <div className="bg-orange-50 text-orange-600 text-3xl w-14 h-14 rounded-full flex items-center justify-center border border-orange-100">
+              📈
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">
+                Ventas Totales de Hoy
+              </p>
+              <p className="text-2xl font-black text-orange-600 mt-1">
+                {formatMoney(totalToday)}
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                {todayOrders.length} órdenes registradas hoy
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 📊 METRICAS HISTÓRICAS Y CONFIGURACIÓN GLOBAL */}
+      <div>
+        <h2 className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+          📊 Históricos & Negocio
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Ingresos Históricos */}
+          <div className="bg-white rounded-2xl shadow-sm p-6 flex items-center gap-4 border border-gray-100 hover:shadow-md transition-shadow">
+            <div className="bg-indigo-50 text-indigo-600 text-3xl w-14 h-14 rounded-full flex items-center justify-center border border-indigo-100">
+              💰
+            </div>
+            <div>
+              <p className="text-gray-500 text-sm">Ventas Históricas</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">
+                {formatMoney(totalRevenue)}
+              </p>
+              <p className="text-gray-400 text-xs mt-0.5">
+                Acumulado total del sistema
+              </p>
+            </div>
+          </div>
+
+          {/* Valor de Inventario */}
+          <div className="bg-white rounded-2xl shadow-sm p-6 flex items-center gap-4 border border-gray-100 hover:shadow-md transition-shadow">
+            <div className="bg-purple-50 text-purple-600 text-3xl w-14 h-14 rounded-full flex items-center justify-center border border-purple-100">
+              🏪
+            </div>
+            <div>
+              <p className="text-gray-500 text-sm">Valor de Inventario</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">
+                {formatMoney(inventoryValue)}
+              </p>
+              <p className="text-gray-400 text-xs mt-0.5">
+                Precio de Venta x Stock de productos
+              </p>
+            </div>
+          </div>
+
+          {/* Total Productos */}
+          <div className="bg-white rounded-2xl shadow-sm p-6 flex items-center gap-4 border border-gray-100 hover:shadow-md transition-shadow">
+            <div className="bg-amber-50 text-orange-500 text-3xl w-14 h-14 rounded-full flex items-center justify-center border border-amber-100">
+              📦
+            </div>
+            <div>
+              <p className="text-gray-500 text-sm">Catálogo Activo</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">
+                {totalProducts} productos
+              </p>
+              <p className="text-gray-400 text-xs mt-0.5">
+                Distribuidos en {categories} categorías
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

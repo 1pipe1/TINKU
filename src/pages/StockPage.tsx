@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { doc, updateDoc, deleteDoc, addDoc, collection } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  deleteDoc,
+  addDoc,
+  collection,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import useStockStore from "../store/useStockStore";
 import useAuthStore from "../store/useAuthStore";
@@ -73,24 +79,24 @@ const StockPage = () => {
       image: form.image.trim(),
     };
 
-     try {
-       if (editingProduct) {
-         await updateDoc(
-           doc(db, "usuarios", user.uid, "productos", editingProduct.id),
-           data,
-         );
-       } else {
-         await addDoc(collection(db, "usuarios", user.uid, "productos"), data);
-       }
-       
-       setShowForm(false);
-       setEditingProduct(null);
-       setForm(emptyForm);
-       await fetchProducts(user.uid);
-     } catch (error) {
-       console.error("Error al guardar producto:", error);
-       alert("Hubo un error al guardar los datos.");
-     }
+    try {
+      if (editingProduct) {
+        await updateDoc(
+          doc(db, "usuarios", user.uid, "productos", editingProduct.id),
+          data,
+        );
+      } else {
+        await addDoc(collection(db, "usuarios", user.uid, "productos"), data);
+      }
+
+      setShowForm(false);
+      setEditingProduct(null);
+      setForm(emptyForm);
+      await fetchProducts(user.uid);
+    } catch (error) {
+      console.error("Error al guardar producto:", error);
+      alert("Hubo un error al guardar los datos.");
+    }
   };
 
   if (loading)
@@ -133,7 +139,9 @@ const StockPage = () => {
                 className="w-full border rounded-lg p-2 text-sm"
                 placeholder="Categoría"
                 value={form.categoria}
-                onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, categoria: e.target.value })
+                }
                 required
               />
               <input
