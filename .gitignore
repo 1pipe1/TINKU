@@ -24,4 +24,6 @@ dist-ssr
 *.sw?
 .env.development
 .env.production
+src/scripts/serviceAccountKey.json
+**/serviceAccountKey.json
 

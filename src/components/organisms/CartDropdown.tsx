@@ -124,7 +124,7 @@ const CartDropdown = ({
               }}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-xl text-lg transition-colors"
             >
-              Finalizar mi pedido →
+              Finalizar Venta →
             </button>
 
             <button

@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
-import { getAuth } from "firebase/auth";
-import useStockStore from "../store/useStockStore";
 import useAuthStore from "../store/useAuthStore";
+import useStockStore from "../store/useStockStore";
 
 type Order = {
   id: string;
@@ -18,15 +17,14 @@ const DashboardPage = () => {
   const fetchProducts = useStockStore((state) => state.fetchProducts);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const auth = getAuth();
   const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     const loadData = async () => {
-      const uid = user?.uid || user?.uid; // 👈 Cambiamos el auth mudo por el user reactivo
-      if (!uid) return; // Si Firebase aún no inicializa el usuario al refrescar, simplemente esperamos en silencio...
+      const uid = user?.uid || user?.uid;
+      if (!uid) return;
 
-      // 2. En cuanto useAuthStore se entera de quién es, carga todo lo de este tendero
+      // 🛡️ MULTI-TENANT: Cargamos los productos y órdenes específicos de este tendero
       await fetchProducts(uid);
       const snapshot = await getDocs(collection(db, "usuarios", uid, "orders"));
       const data: Order[] = snapshot.docs.map((docSnap) => ({
@@ -35,22 +33,13 @@ const DashboardPage = () => {
       })) as Order[];
 
       setOrders(data);
-      setLoading(false); // 👈 ¡Y apagamos el spinner de una!
+      setLoading(false);
     };
 
     loadData();
-  }, [fetchProducts, user?.uid, user?.uid]); // 👈 ¡LA CLAVE! Se vuelve a disparar en el milis
+  }, [fetchProducts, user?.uid, user?.uid]);
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (!user) {
-        window.location.href = "/login"; // Redirige al login si el usuario no está autenticado
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // --- MÉTODOS DE FORMATEO ---
+  // --- MÉTODOS DE FORMATEO --
   const formatMoney = (val: number) => {
     return `$${val.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
   };
@@ -65,12 +54,10 @@ const DashboardPage = () => {
     .length;
 
   // --- CÁLCULOS DE VENTAS ---
-  // Filtramos solo órdenes completadas (ignorando canceladas si las hay)
   const activeOrders = orders.filter((o) => o.status !== "canceled");
   const totalRevenue = activeOrders.reduce((sum, o) => sum + (o.total || 0), 0);
 
   // --- FILTRO DE HOY (CON CORTE OPERATIVO DE LAS 4:00 AM) ---
-  // El día operativo corre corrido hasta las 4:00 AM del día siguiente.
   const getOperationalDateString = (date: Date) => {
     const shifted = new Date(date.getTime() - 4 * 60 * 60 * 1000); // Restamos 4 horas
     return shifted.toDateString();
@@ -95,6 +82,30 @@ const DashboardPage = () => {
 
   const totalToday = cashToday + transferToday;
 
+  // 🔥 ACCIÓN DE GUERRILLA: ENVIAR REPORTE POR WHATSAPP SIN SALIR DE LA APP
+  const handleShareWhatsApp = () => {
+    const formattedDate = new Date().toLocaleDateString("es-CO", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const mensaje =
+      `🏪 *TINKU - CUADRE DE CAJA* \n` +
+      `📅 *Fecha:* ${formattedDate}\n` +
+      `----------------------------------\n` +
+      `💵 *Efectivo (Cajón):* ${formatMoney(cashToday)}\n` +
+      `🏦 *Transferencia:* ${formatMoney(transferToday)}\n` +
+      `📈 *Ingreso Bruto:* ${formatMoney(totalToday)}\n` +
+      `📦 *Ventas Realizadas:* ${todayOrders.length} órdenes\n` +
+      `----------------------------------\n` +
+      `¡ Que tengas un excelente día! 🚀`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, "_blank");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center">
@@ -109,7 +120,8 @@ const DashboardPage = () => {
   }
 
   return (
-    <div className="p-4 md:p-8 bg-[#F0F4F8] min-h-screen">
+    
+    <div className="p-2 md:p-8 bg-[#F0F4F8] min-h-screen">
       {/* Encabezado Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
@@ -140,7 +152,8 @@ const DashboardPage = () => {
             Corte: 4:00 AM ⏰
           </span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           {/* Tarjeta Efectivo */}
           <div className="bg-white rounded-2xl shadow-sm border-l-4 border-emerald-500 p-6 flex items-center gap-4 hover:shadow-md transition-shadow">
             <div className="bg-emerald-50 text-emerald-600 text-3xl w-14 h-14 rounded-full flex items-center justify-center border border-emerald-100">
@@ -172,7 +185,7 @@ const DashboardPage = () => {
                 {formatMoney(transferToday)}
               </p>
               <p className="text-gray-400 text-xs mt-1">
-                Plata digital en el banco. Bancolombia/Nequi/Daviplata
+                Plata digital en el banco. Nequi o Daviplata
               </p>
             </div>
           </div>
@@ -195,6 +208,14 @@ const DashboardPage = () => {
             </div>
           </div>
         </div>
+
+        {/* 🔥 EL BOTÓN MÁGICO DE GUERRILLA */}
+        <button
+          onClick={handleShareWhatsApp}
+          className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-black py-4 px-6 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-md shadow-green-100 text-lg active:scale-95"
+        >
+          💬 Tu cuadre a Whatsapp
+        </button>
       </div>
 
       {/* 📊 METRICAS HISTÓRICAS Y CONFIGURACIÓN GLOBAL */}

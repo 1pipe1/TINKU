@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import ProductCard from "../components/molecules/ProductCard";
 import Navbar from "../components/organisms/Navbar";
+import QuickCheckoutDrawer from "../components/organisms/QuickCheckoutDrawer";
 import useAuthStore from "../store/useAuthStore";
 import { useNavigate } from "react-router-dom";
 import useStockStore from "../store/useStockStore";
@@ -12,10 +13,7 @@ import type { FC } from "react";
 const HomePage: FC = () => {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-
-  // ⚡ Estados para la función "Venta Rápida"
-  const [quickPrice, setQuickPrice] = useState("");
-  const [quickCategory, setQuickCategory] = useState("General");
+  const [isQuickDrawerOpen, setIsQuickDrawerOpen] = useState(false);
 
   const products = useStockStore((state) => state.products);
   const fetchProducts = useStockStore((state) => state.fetchProducts);
@@ -25,21 +23,19 @@ const HomePage: FC = () => {
   const cart = useCartStore((state) => state.cart);
   const activeDraftId = useCartStore((state) => state.activeDraftId);
   const clearActiveDraftId = useCartStore((state) => state.clearActiveDraftId);
-  const addToCart = useCartStore((state) => state.addToCart);
 
-  // 1. Carga limpia de productos pasándole el UID privado
+  // 1. Carga limpia de productos (SIN pasarle UID porque el stock de la tienda es global)
   useEffect(() => {
     const loadProducts = async () => {
-      if (!user?.uid) return;
       try {
-        await fetchProducts(user.uid);
+        await fetchProducts(user?.uid ?? "");
       } finally {
         setLoading(false);
       }
     };
 
     loadProducts();
-  }, [fetchProducts, user?.uid]);
+  }, [fetchProducts]);
 
   // 2. Limpieza de borradores/drafts cuando el carrito se vacía
   useEffect(() => {
@@ -58,27 +54,15 @@ const HomePage: FC = () => {
     cleanupDraft();
   }, [activeDraftId, cart.length, clearActiveDraftId]);
 
-  // ⚡ Manejador de la "Venta Rápida" sin afectar stock
-  const handleQuickSale = (e: React.FormEvent) => {
-    e.preventDefault();
-    const price = parseFloat(quickPrice);
-    if (isNaN(price) || price <= 0) {
-      alert("Por favor ingresa un precio válido mayor a 0");
-      return;
+  // 🚪 Función de Cierre de Sesión Blindada contra Clics por Error
+  const handleSafeLogout = async () => {
+    const confirmLogout = window.confirm(
+      "⚠️ ¿Estás seguro de que deseas cerrar sesión de tu cuenta de TINKU?\n\nEsto bloqueará el mostrador hasta que vuelvas a ingresar tus datos de acceso."
+    );
+    if (confirmLogout) {
+      await logout();
+      navigate("/login");
     }
-
-    // Insertamos un ítem virtual que CheckoutPage sabe procesar sin descontar inventario
-    addToCart({
-      id: `venta-rapida-${Date.now()}`,
-      title: `Venta Rápida (${quickCategory})`,
-      price: price,
-      category: quickCategory,
-      stock: 9999, // Stock infinito virtual para evitar advertencias de "Últimas unidades"
-      image: "",
-    } as any);
-
-    setQuickPrice(""); // Reset de precio
-    alert(`⚡ Venta rápida de $${price.toLocaleString()} agregada al carrito.`);
   };
 
   // 3. Filtro de búsqueda por nombre o título
@@ -99,7 +83,8 @@ const HomePage: FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] text-gray-900">
+    <div className="min-h-screen bg-[#F0F4F8] text-gray-900 pb-20 md:pb-8">
+      {/* Navbar Superior Fijo */}
       <Navbar
         search={search}
         onSearchChange={(val) => setSearch(val)}
@@ -107,67 +92,61 @@ const HomePage: FC = () => {
       />
 
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
-        {/* Header con Bienvenida y Cierre de Sesión */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">
-            Bienvenido,{" "}
-            <span className="text-orange-600">{user?.email || "Usuario"}</span>
-          </h2>
-
-          <button
-            onClick={logout}
-            className="bg-orange-600 hover:opacity-85 text-white font-semibold py-2 px-3 rounded-md transition-all text-sm"
-          >
-            Cerrar Sesión
-          </button>
-        </div>
-
-        {/* ⚡ SECCIÓN MULTI-TENANT: VENTA RÁPIDA (Sin Inventario) */}
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row items-center justify-between gap-4 transition-all">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">⚡</span>
+        
+        {/* 💻 NAVEGACIÓN DESKTOP ELEGANTE */}
+        <div className="hidden md:flex justify-between items-center mb-6 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏪</span>
             <div>
-              <h3 className="font-bold text-gray-800 text-sm">Venta Rápida</h3>
-              <p className="text-xs text-gray-500">Registra un valor al vuelo sin buscar producto</p>
+              <p className="font-bold text-gray-800 text-sm">Mostrador TINKU</p>
+              <p className="text-xs text-gray-400">Operando con {products.length} productos en stock</p>
             </div>
           </div>
-          
-          <form onSubmit={handleQuickSale} className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            {/* Input de Precio */}
-            <div className="relative flex-1 md:flex-initial">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-bold">$</span>
-              <input
-                type="number"
-                placeholder="Precio Venta"
-                required
-                min="50"
-                step="50"
-                value={quickPrice}
-                onChange={(e) => setQuickPrice(e.target.value)}
-                className="w-full md:w-36 pl-7 pr-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-all"
-              />
-            </div>
-
-            {/* Categoría para calcular el margen estimado */}
-            <select
-              value={quickCategory}
-              onChange={(e) => setQuickCategory(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white text-gray-700 font-medium focus:outline-none focus:border-orange-500 cursor-pointer"
-            >
-              <option value="General">Categoría: General</option>
-              <option value="Bebidas">Categoría: Bebidas</option>
-              <option value="Cigarrillos">Categoría: Cigarrillos</option>
-              <option value="Pasabocas">Categoría: Pasabocas</option>
-            </select>
-
-            {/* Botón Agregar */}
+          <div className="flex items-center gap-4">
             <button
-              type="submit"
-              className="w-full md:w-auto bg-green-500 hover:bg-green-600 text-white font-bold px-5 py-2 rounded-xl text-sm transition-all shadow-md shadow-green-100"
+              onClick={() => navigate("/admin")}
+              className="text-gray-600 hover:text-orange-500 font-bold text-sm px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-all"
             >
-              + Agregar al Carrito
+              📊 Dashboard
             </button>
-          </form>
+            <button
+              onClick={() => navigate("/admin/stock")}
+              className="text-gray-600 hover:text-orange-500 font-bold text-sm px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-all"
+            >
+              📦 Stock
+            </button>
+            <button
+              onClick={() => navigate("/admin/sales")}
+              className="text-gray-600 hover:text-orange-500 font-bold text-sm px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-all"
+            >
+              💰 Ventas
+            </button>
+            <button
+              onClick={handleSafeLogout}
+              className="text-gray-400 hover:text-red-600 font-bold text-sm px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all"
+            >
+              🚪 Salir
+            </button>
+          </div>
+        </div>
+
+        {/* ⚡ SECCIÓN MULTI-TENANT: COBRO EXPRESS (CALCULADORA DE COMBATE) */}
+        <div 
+          onClick={() => setIsQuickDrawerOpen(true)}
+          className="bg-linear-to-r from-orange-500 to-amber-600 p-5 rounded-2xl shadow-sm text-white mb-6 flex items-center justify-between cursor-pointer hover:from-orange-600 hover:to-amber-700 active:scale-98 transition-all border border-orange-400/20"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl animate-pulse">
+              ⚡
+            </div>
+            <div>
+              <h3 className="font-black text-base tracking-wide">Cobro Express</h3>
+              <p className="text-xs text-orange-100 mt-0.5">Calculadora rápida: suma y cobra al vuelo sin digitar inventario</p>
+            </div>
+          </div>
+          <button className="bg-white text-orange-600 hover:bg-orange-50 font-black px-4 py-2 rounded-xl text-xs shadow-md shadow-orange-900/10 tracking-wider uppercase transition-all shrink-0">
+            Abrir Teclado 🧮
+          </button>
         </div>
 
         {/* Parrilla de Productos del Catálogo */}
@@ -198,6 +177,70 @@ const HomePage: FC = () => {
             )}
           </div>
         )}
+      </div>
+
+      {/* 📱 BOTÓN FLOTANTE COBRO EXPRESS EN MÓVIL (Fiel al pulgar rápido de doña Mercedes) */}
+      <button
+        onClick={() => setIsQuickDrawerOpen(true)}
+        className="fixed bottom-24 right-4 z-40 bg-orange-500 hover:bg-orange-600 text-white p-4.5 rounded-full shadow-2xl active:scale-95 transition-all md:hidden flex items-center justify-center border border-orange-400/30"
+        style={{ width: "56px", height: "56px" }}
+        title="Abrir Cobro Express"
+      >
+        <span className="text-2xl font-bold">⚡</span>
+      </button>
+
+      {/* El Drawer de la Calculadora Futurista */}
+      <QuickCheckoutDrawer 
+        isOpen={isQuickDrawerOpen} 
+        onClose={() => setIsQuickDrawerOpen(false)} 
+      />
+
+      {/* 📱 BARRA DE NAVEGACIÓN MÓVIL PERSISTENTE */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-xl px-4 py-3 flex justify-around items-center z- md:hidden">
+        {/* Vender (Ruta Actual - Activa) */}
+        <button
+          onClick={() => navigate("/")}
+          className="flex flex-col items-center gap-1 text-orange-500 font-black"
+        >
+          <span className="text-xl">⚡</span>
+          <span className="text-[10px] tracking-wide">Vender</span>
+        </button>
+
+        {/* Dashboard */}
+        <button
+          onClick={() => navigate("/admin")}
+          className="flex flex-col items-center gap-1 text-gray-400 hover:text-orange-500 font-semibold transition-all"
+        >
+          <span className="text-xl">📊</span>
+          <span className="text-[10px] tracking-wide">Dashboard</span>
+        </button>
+
+        {/* Stock */}
+        <button
+          onClick={() => navigate("/admin/stock")}
+          className="flex flex-col items-center gap-1 text-gray-400 hover:text-orange-500 font-semibold transition-all"
+        >
+          <span className="text-xl">📦</span>
+          <span className="text-[10px] tracking-wide">Stock</span>
+        </button>
+
+        {/* Ventas */}
+        <button
+          onClick={() => navigate("/admin/sales")}
+          className="flex flex-col items-center gap-1 text-gray-400 hover:text-orange-500 font-semibold transition-all"
+        >
+          <span className="text-xl">💰</span>
+          <span className="text-[10px] tracking-wide">Ventas</span>
+        </button>
+
+        {/* Salir (Con Confirmación Segura contra Accidentes) */}
+        <button
+          onClick={handleSafeLogout}
+          className="flex flex-col items-center gap-1 text-gray-300 hover:text-red-500 font-semibold transition-all"
+        >
+          <span className="text-xl">🚪</span>
+          <span className="text-[10px] tracking-wide">Salir</span>
+        </button>
       </div>
     </div>
   );

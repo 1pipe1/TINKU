@@ -91,7 +91,7 @@ const AdminSidebar = () => {
       </aside>
 
       {/* Barra inferior — solo móvil */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-700 z-50 flex">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-700 z-100 flex">
         {/* Botón tienda */}
         <NavLink
           to="/"

@@ -87,7 +87,7 @@ const CheckoutPage: FC = () => {
       setError("Inicia sesión para poder procesar la compra.");
       return;
     }
-
+    if (loading) return; // Evitar múltiples envíos de la misma compra
     setError("");
     setLoading(true);
     try {

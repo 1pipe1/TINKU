@@ -257,7 +257,7 @@ const SalesPage = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[=500px]">
+          <table className="w-full text-sm min-w-[ 500px]">
             <thead>
               <tr className="text-left text-gray-500 border-b">
                 <th className="pb-3">Hora</th>
@@ -288,7 +288,7 @@ const SalesPage = () => {
                         .replace(/\B(?=(\d{3})+(?!\d))/g, ".") || 0}
                     </td>
                     <td className="py-3">
-                      {o.status === "cancelled" ? (
+                      {o.status === "canceled" || o.status === "cancelled" ? (
                         <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-medium justify-center items-center flex">
                           ❌
                         </span>
@@ -306,14 +306,15 @@ const SalesPage = () => {
                         >
                           Detalle Orden →
                         </button>
-                        {o.status === "completed" && (
-                          <button
-                            onClick={() => handleCancelOrder(o.id)}
-                            className="text-xs text-red-500 hover:text-red-600 font-semibold transition-colors"
-                          >
-                            Cancelar
-                          </button>
-                        )}
+                        {o.status !== "canceled" &&
+                          o.status !== "cancelled" && (
+                            <button
+                              onClick={() => handleCancelOrder(o.id)}
+                              className="text-xs text-red-500 hover:text-red-600 font-semibold transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                          )}
                       </div>
                     </td>
                   </tr>
@@ -405,6 +406,7 @@ const SalesPage = () => {
                       )}
                       <div className="flex-1">
                         <p className="text-sm font-medium">{itemName}</p>
+
                         <p className="text-xs text-gray-400">
                           {item.quantity} × ${item.price?.toFixed(0)}
                         </p>
