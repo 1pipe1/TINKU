@@ -5,7 +5,6 @@ import useCartStore from "../../store/useCartStore";
 import useAuthStore from "../../store/useAuthStore";
 import SearchBar from "../atoms/SearchBar";
 import CartDropdown from "./CartDropdown";
-import QuickCheckoutDrawer from "./QuickCheckoutDrawer";
 
 type NavbarProps = {
   search: string;
@@ -15,7 +14,6 @@ type NavbarProps = {
 
 const Navbar = ({ search, onSearchChange, onCheckout }: NavbarProps) => {
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isQuickDrawerOpen, setIsQuickDrawerOpen] = useState(false);
   const getTotalItems = useCartStore((state) => state.getTotalItems);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
@@ -37,42 +35,27 @@ const Navbar = ({ search, onSearchChange, onCheckout }: NavbarProps) => {
         <div className="flex-1 flex justify-center items-center max-w-md">
           <SearchBar value={search} onChange={onSearchChange} />
         </div>
-        {/* Botón Flotante para abrir la Calculadora Express en Móvil */}
-        <button
-          onClick={() => setIsQuickDrawerOpen(true)}
-          className="fixed bottom-24 right-4 z-0 bg-orange-500 hover:bg-orange-600 text-white p-4 rounded-full shadow-2xl active:scale-95 transition-all md:hidden flex items-center justify-center border border-orange-400"
-          title="Cobro Rápido Express"
-        >
-          <span className="text-2xl">⚡</span>
-        </button>
-
-        {/* El Drawer de la Calculadora */}
-        <QuickCheckoutDrawer
-          isOpen={isQuickDrawerOpen}
-          onClose={() => setIsQuickDrawerOpen(false)}
-        />
-
         <div className="flex items-center gap-4">
           {isAuthenticated && role === "admin" && (
             <button
               onClick={() => navigate("/admin")}
               className="flex items-center gap-1 text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors"
             >
-              <span className="font-bold text-black">MiNegocio</span>
+              
             </button>
           )}
 
           <div
             className="relative cursor-pointer"
-            onClick={() => setIsCartOpen(true)}
+          
           >
-            <ShoppingCart className="w-6 h-6 text-[#0F172A]" />
+           
             {getTotalItems() > 0 && (
               <span
-                style={{ backgroundColor: "#EA580C" }}
+                style={{  }}
                 className="absolute -top-2 -right-2 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"
               >
-                {getTotalItems()}
+                
               </span>
             )}
           </div>

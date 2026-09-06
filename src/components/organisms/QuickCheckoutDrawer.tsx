@@ -15,7 +15,10 @@ interface QuickItem {
   price: number;
 }
 
-const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) => {
+const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({
+  isOpen,
+  onClose,
+}) => {
   const [inputVal, setInputVal] = useState<string>("");
   const [addedItems, setAddedItems] = useState<QuickItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -107,7 +110,9 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
       // Si hay un número a medias en la pantalla del teclado, lo agregamos automáticamente
       if (currentPriceInput > 0) {
         if (currentPriceInput < 50) {
-          throw new Error("El valor del último producto debe ser de mínimo $50");
+          throw new Error(
+            "El valor del último producto debe ser de mínimo $50",
+          );
         }
         finalItemsToCharge.push({
           id: `quick-item-${Date.now()}`,
@@ -116,7 +121,10 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
         });
       }
 
-      const finalTotal = finalItemsToCharge.reduce((sum, item) => sum + item.price, 0);
+      const finalTotal = finalItemsToCharge.reduce(
+        (sum, item) => sum + item.price,
+        0,
+      );
 
       if (finalTotal <= 0) {
         throw new Error("Digita o sume al menos un valor para cobrar.");
@@ -142,7 +150,10 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
       };
 
       // 3. Insertar en Firestore sin intermediarios
-      await addDoc(collection(db, "usuarios", user?.uid || "", "orders"), orderPayload);
+      await addDoc(
+        collection(db, "usuarios", user?.uid || "", "orders"),
+        orderPayload,
+      );
 
       // Mostrar animación de éxito por un segundo
       setSuccess(true);
@@ -152,7 +163,6 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
         setLoading(false);
         onClose();
       }, 1200);
-
     } catch (err: any) {
       setError(err.message || "Error al procesar el cobro.");
       setLoading(false);
@@ -160,13 +170,15 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity">
+    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity">
       {/* Fondo clickeable para cerrar */}
-      <div className="absolute inset-0" onClick={!loading ? onClose : undefined} />
+      <div
+        className="absolute inset-0"
+        onClick={!loading ? onClose : undefined}
+      />
 
       {/* Cajón Deslizable (Bottom Sheet) */}
       <div className="relative w-full max-w-md bg-white rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-94vh animate-slide-up z-0 border-t border-gray-100">
-        
         {/* Barra superior de arrastre estético */}
         <div className="mx-auto my-3 h-1.5 w-12 rounded-full bg-gray-300 shrink-0" />
 
@@ -176,7 +188,9 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
             <span className="text-2xl">⚡</span>
             <div>
               <h2 className="text-lg font-bold text-gray-800">Cobro Express</h2>
-              <p className="text-xs text-gray-400">Modo ráfaga: calculadora rápida</p>
+              <p className="text-xs text-gray-400">
+                Modo ráfaga: calculadora rápida
+              </p>
             </div>
           </div>
           <button
@@ -192,30 +206,41 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
         {success ? (
           <div className="p-12 flex flex-col items-center justify-center text-center bg-green-50/50 min-h-300px flex-1">
             <div className="text-6xl animate-bounce mb-4">🎉</div>
-            <h3 className="text-2xl font-black text-green-600">¡Venta Coronada!</h3>
-            <p className="text-gray-500 text-sm mt-1">Guardada en el historial y sumada a la caja</p>
+            <h3 className="text-2xl font-black text-green-600">
+              ¡Venta Coronada!
+            </h3>
+            <p className="text-gray-500 text-sm mt-1">
+              Guardada en el historial y sumada a la caja
+            </p>
             <div className="mt-4 px-4 py-2 bg-green-500 text-white font-bold rounded-xl text-lg">
               {formatMoney(totalLive)}
             </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col overflow-hidden">
-            
             {/* CUERPO DEL DRAWER (CON SCROLL INTERNO SI EL CELULAR ES PEQUEÑO) */}
             <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
-              
               {/* ÁREA DE VISOR / DISPLAY DE LA CALCULADORA */}
               <div className="p-5 bg-gray-900 text-white flex flex-col justify-end items-end min-h-120px font-mono relative shrink-0">
-                
                 {/* Historial de la suma (ej. 3.500 + 2.000) */}
                 <div className="text-gray-400 text-xs font-semibold max-w-full truncate overflow-hidden mb-1 flex flex-wrap justify-end gap-1">
                   {addedItems.map((item, idx) => (
-                    <span key={item.id} className="bg-gray-800/80 px-1.5 py-0.5 rounded text-[10px]">
+                    <span
+                      key={item.id}
+                      className="bg-gray-800/80 px-1.5 py-0.5 rounded text-[10px]"
+                    >
                       {formatMoney(item.price)}
-                      {idx < addedItems.length - 1 || inputVal !== "" ? " +" : ""}
+                      {idx < addedItems.length - 1 || inputVal !== ""
+                        ? " +"
+                        : ""}
                     </span>
                   ))}
-                  {inputVal !== "" && addedItems.length > 0 && <span className="text-yellow-400"> + {formatMoney(currentPriceInput)}</span>}
+                  {inputVal !== "" && addedItems.length > 0 && (
+                    <span className="text-yellow-400">
+                      {" "}
+                      + {formatMoney(currentPriceInput)}
+                    </span>
+                  )}
                 </div>
 
                 {/* Visor del Valor actual siendo digitado */}
@@ -243,7 +268,6 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
 
               {/* GRILLA DE BOTONES (TECLADO NUMÉRICO COMPACTADO) */}
               <div className="p-4 bg-gray-50 flex-1 grid grid-cols-4 gap-2">
-                
                 {/* Fila 1 */}
                 <button
                   onClick={() => handleNumClick("7")}
@@ -269,7 +293,6 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
                 >
                   ⌫
                 </button>
-
                 {/* Fila 2 */}
                 <button
                   onClick={() => handleNumClick("4")}
@@ -295,7 +318,6 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
                 >
                   C
                 </button>
-
                 {/* Fila 3 */}
                 <button
                   onClick={() => handleNumClick("1")}
@@ -315,7 +337,6 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
                 >
                   3
                 </button>
-
                 {/* Botón SUMAR (+) que abarca 2 filas verticales */}
                 <button
                   onClick={handleAddItem}
@@ -323,7 +344,6 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
                 >
                   +
                 </button>
-
                 {/* Fila 4 */}
                 <button
                   onClick={() => handleNumClick("0")}
@@ -331,7 +351,6 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
                 >
                   0
                 </button>
-                
                 {/* Botón Triple Cero (Clave para COP) */}
                 <button
                   onClick={() => handleNumClick("000")}
@@ -340,11 +359,9 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
                 >
                   .000
                 </button>
-                
-                <div className="bg-transparent" /> {/* Espacio vacío por la fila unida del '+' */}
-
+                <div className="bg-transparent" />{" "}
+                {/* Espacio vacío por la fila unida del '+' */}
               </div>
-
             </div>
 
             {/* SECCIÓN FINAL DE COBROS (FIJA ABAJO CON COLCHÓN PARA MÓVIL) */}
@@ -367,10 +384,8 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({ isOpen, onClose }) 
                 <span>{loading ? "Cobrando..." : "Transferencia"}</span>
               </button>
             </div>
-
           </div>
         )}
-
       </div>
     </div>
   );

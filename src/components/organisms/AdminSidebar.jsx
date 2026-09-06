@@ -45,12 +45,13 @@ const AdminSidebar = () => {
           🛒 Nexo Admin
         </h1>
 
-        {/* Volver a tienda */}
+        {/* Acción principal: registrar una venta */}
         <NavLink
           to="/"
-          className="flex items-center gap-2 text-xs text-gray-400 hover:text-orange-400 transition-colors mb-6"
+          className="flex items-center justify-center gap-2 min-h-14 rounded-xl bg-orange-500 hover:bg-orange-400 text-white font-black shadow-lg transition-all active:scale-95 mb-6"
         >
-          ← Ver tienda
+          <span className="text-2xl">⚡</span>
+          <span>Nueva venta</span>
         </NavLink>
 
         <nav className="flex flex-col gap-2 flex-1">
@@ -90,48 +91,6 @@ const AdminSidebar = () => {
         </button>
       </aside>
 
-      {/* Barra inferior — solo móvil */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-700 z-100 flex">
-        {/* Botón tienda */}
-        <NavLink
-          to="/"
-          className="flex-1 flex flex-col items-center justify-center py-3 text-xs text-gray-400 hover:text-orange-400 transition-colors"
-        >
-          <span className="text-xl mb-0.5">🏪</span>
-          Tienda
-        </NavLink>
-
-        {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.to === "/admin"}
-            className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center py-3 text-xs transition-colors ${
-                isActive ? "text-orange-500 font-semibold" : "text-gray-400"
-              }`
-            }
-          >
-            <span className="relative text-xl mb-0.5 inline-flex items-center justify-center">
-              {link.icon}
-              {link.to === "/admin/drafts" && draftCount > 0 && (
-                <span className="absolute -top-1 -right-2 min-w-[1.1rem] h-4 text-[9px] leading-none inline-flex items-center justify-center rounded-full bg-red-600 text-white px-1">
-                  {draftCount}
-                </span>
-              )}
-            </span>
-            <span className="text-xs">{link.label}</span>
-          </NavLink>
-        ))}
-
-        <button
-          onClick={handleLogout}
-          className="flex-1 flex flex-col items-center justify-center py-3 text-xs text-gray-400 hover:text-red-400 transition-colors"
-        >
-          <span className="text-xl mb-0.5">🚪</span>
-          Salir
-        </button>
-      </nav>
     </>
   );
 };

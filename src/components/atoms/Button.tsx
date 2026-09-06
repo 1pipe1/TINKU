@@ -8,7 +8,7 @@ const Button = ({ text, onClick }: ButtonProps) => {
     <button
       onClick={onClick}
       style={{ backgroundColor: "#EA580C" }}
-      className="hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+      className="hover:opacity-90 text-white font-bold text-base min-h-11 py-2 px-5 rounded-lg transition-colors"
     >
       {text}
     </button>

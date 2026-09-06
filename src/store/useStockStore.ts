@@ -9,13 +9,14 @@ type StockState = {
 };
 
 // 🌟 TIENDA DEFINITIVA SIN PERSISTENCIA (Inmune a cruce de caché entre usuarios)
-const useStockStore = create<StockState>((set) => ({
+const useStockStore = create<StockState>((set, get) => ({
   products: [],
   fetchProducts: async (uid: string) => {
     if (!uid) {
       console.warn("Se requiere un UID válido para cargar productos.");
       return;
     }
+    if (get().products.length > 0) return;
 
     try {
       // 1. Apuntamos a la subcolección privada de productos del usuario

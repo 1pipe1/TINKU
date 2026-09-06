@@ -27,7 +27,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
   const outOfStock = displayStock === 0;
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 h-full flex flex-col justify-between text-center">
+    <div className="bg-white p-4 md:p-6 rounded-xl shadow-lg border border-gray-100 h-full flex flex-col justify-between text-center">
       <div>
         {/* Renderizado condicional de imagen o placeholder */}
         <div className="h-32 flex items-center justify-center mb-4 bg-gray-50 rounded-lg">
@@ -46,7 +46,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
           {displayTitle}
         </h2>
 
-        <p className="text-xs font-semibold text-orange-600 bg-orange-50 inline-block px-2 py-1 rounded mb-3">
+        <p className="text-sm font-semibold text-orange-600 bg-orange-50 inline-block px-2 py-1 rounded mb-3">
           {displayCategory}
         </p>
 
@@ -55,11 +55,11 @@ const ProductCard = ({ product }: ProductCardProps) => {
         </div>
 
         {outOfStock ? (
-          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full inline-block mb-3">
+          <span className="bg-red-500 text-white text-sm px-2 py-1 rounded-full inline-block mb-3">
             🚫 Agotado
           </span>
         ) : displayStock <= 10 ? (
-          <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full inline-block mb-3">
+          <span className="bg-yellow-500 text-white text-sm px-2 py-1 rounded-full inline-block mb-3">
             ⚠️ Últimas {displayStock} unidades
           </span>
         ) : null}
@@ -70,17 +70,17 @@ const ProductCard = ({ product }: ProductCardProps) => {
           <button
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
             disabled={outOfStock}
-            className="px-3 py-1 bg-gray-200 rounded-full disabled:opacity-40 font-bold"
+            className="w-10 h-10 bg-gray-200 rounded-full disabled:opacity-40 font-bold text-lg"
           >
             -
           </button>
 
-          <span className="text-lg font-semibold">{quantity}</span>
+          <span className="text-xl font-semibold">{quantity}</span>
 
           <button
             onClick={() => setQuantity(Math.min(displayStock, quantity + 1))}
             disabled={outOfStock}
-            className="px-3 py-1 bg-gray-200 rounded-full disabled:opacity-40 font-bold"
+            className="w-10 h-10 bg-gray-200 rounded-full disabled:opacity-40 font-bold text-lg"
           >
             +
           </button>
