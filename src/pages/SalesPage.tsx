@@ -3,11 +3,12 @@ import {
   collection,
   onSnapshot,
   doc,
-  updateDoc,
   runTransaction,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import useAuthStore from "../store/useAuthStore";
+import { useNavigate } from "react-router-dom";
+
 interface OrderItem {
   id: string;
   name?: string;
@@ -21,6 +22,7 @@ interface Order {
   id: string;
   total: number;
   userEmail: string;
+  paymentMethod?: "cash" | "transfer";
   createdAt: any;
   status?: string;
   items?: OrderItem[];
@@ -42,75 +44,114 @@ const SalesPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [filterDate, setFilterDate] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "today">("all");
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const user = useAuthStore((state) => state.user);
+  const navigate = useNavigate();
 
+  const uid = user?.uid || user?.uid;
+
+  // 1. Suscripción en Tiempo Real Multi-tenant 🛡️
   useEffect(() => {
-    if (!user?.uid) return; // 🛡️ Evita consultas antes de que cargue la sesión
+    if (!uid) {
+      setLoading(false);
+      return;
+    }
 
-    // 🛡️ MULTI-TENANT: Apuntamos exclusivamente a las órdenes de este usuario
-    const ordersRef = collection(db, "usuarios", user.uid, "orders");
+    setLoading(true);
+    const ordersRef = collection(db, "usuarios", uid, "orders");
 
-    const unsub = onSnapshot(ordersRef, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Order[];
-      setOrders(data);
-    });
+    const unsubscribe = onSnapshot(
+      ordersRef,
+      (snapshot) => {
+        const rawOrders = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as Order[];
 
-    return () => unsub();
-  }, [user?.uid]); // 🔄 Se vuelve a suscribir si cambia de usuario, []);
+        // Ordenar cronológicamente descendente (más recientes primero)
+        const sorted = rawOrders.sort((a, b) => {
+          const dateA = a.createdAt?.toDate
+            ? a.createdAt.toDate().getTime()
+            : 0;
+          const dateB = b.createdAt?.toDate
+            ? b.createdAt.toDate().getTime()
+            : 0;
+          return dateB - dateA;
+        });
 
+        setOrders(sorted);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error subscribing to multi-tenant orders:", error);
+        setLoading(false);
+      },
+    );
+
+    return () => unsubscribe();
+  }, [uid]);
+
+  // --- FORMATEADOR DE COP SEGURO Y COMPACTO ---
+  const formatMoney = (val: number) => {
+    const rounded = Math.round(Math.abs(val));
+    const formatted = rounded.toLocaleString("es-CO");
+    return `${val < 0 ? "-" : ""}$${formatted}`;
+  };
+
+  const todayString = getLocalDateString(new Date());
+
+  // --- CÁLCULO DE MÉTRICAS GENERALES EN VIVO ---
   const totalVentas = orders
     .filter((o) => o.status !== "canceled")
     .reduce((sum, o) => sum + (o.total || 0), 0);
-  const todayString = getLocalDateString(new Date());
+
   const ordenesHoy = orders.filter((o) => {
     const date = getOrderDate(o.createdAt);
     if (!date) return false;
-    return getLocalDateString(date) === todayString;
+    return getLocalDateString(date) === todayString && o.status !== "canceled";
   }).length;
-  const promedio = orders.length ? totalVentas / orders.length : 0;
 
-  const filtered = orders
-    .filter((o) => {
-      const date = getOrderDate(o.createdAt);
-      if (!date) return false;
+  const promedio = orders.filter((o) => o.status !== "canceled").length
+    ? totalVentas / orders.filter((o) => o.status !== "canceled").length
+    : 0;
 
-      const localDate = getLocalDateString(date);
+  // --- FILTRADO DE LA TABLA/LISTA ---
+  const filtered = orders.filter((o) => {
+    const date = getOrderDate(o.createdAt);
+    if (!date) return false;
 
-      if (filterDate && localDate !== filterDate) return false;
-      if (viewMode === "today") {
-        return localDate === todayString;
-      }
+    const dateString = getLocalDateString(date);
 
-      return true;
-    })
-    .sort((a, b) => {
-      const aTime = getOrderDate(a.createdAt)?.getTime?.() || 0;
-      const bTime = getOrderDate(b.createdAt)?.getTime?.() || 0;
-      return bTime - aTime;
-    });
+    // Filtro por Fecha de Calendario
+    if (filterDate && dateString !== filterDate) return false;
 
+    // Filtro por Vista "Solo Hoy"
+    if (viewMode === "today" && dateString !== todayString) return false;
+
+    return true;
+  });
+
+  // --- PAGINACIÓN ---
   const totalPages = Math.ceil(filtered.length / ORDERS_PER_PAGE);
   const paginated = filtered.slice(
     (currentPage - 1) * ORDERS_PER_PAGE,
     currentPage * ORDERS_PER_PAGE,
   );
 
+  // --- TRANSACCIÓN ANTISÍSMICA PARA CANCELAR ORDEN Y DEVOLVER INVENTARIO 🛡️ ---
   const handleCancelOrder = async (orderId: string) => {
+    if (!uid) return;
+
     const confirmed = window.confirm(
-      "¿Estás seguro de que deseas cancelar esta orden y devolver el stock al inventario?",
+      "⚠️ ¿Estás seguro de que deseas cancelar esta venta?\n\nEsto devolverá automáticamente las existencias de los productos al inventario de forma segura en la nube.",
     );
     if (!confirmed) return;
 
     try {
-      // ==========================================
-      // 🧱 TRANSACCIÓN ATÓMICA DE DEVOLUCIÓN
-      // ==========================================
       await runTransaction(db, async (transaction) => {
-        const orderRef = doc(db, "usuarios", user.uid, "orders", orderId);
+        const orderRef = doc(db, "usuarios", uid, "orders", orderId);
         const orderSnap = await transaction.get(orderRef);
 
         if (!orderSnap.exists()) {
@@ -118,326 +159,367 @@ const SalesPage = () => {
         }
 
         const orderData = orderSnap.data();
-
-        // Evitamos cancelar una orden que ya está cancelada
         if (orderData.status === "canceled") {
-          throw new Error("Esta orden ya ha sido cancelada previamente.");
+          throw new Error("Esta orden ya se encuentra cancelada.");
         }
 
-        const items = orderData.items || [];
-        const productUpdates: Array<{
-          ref: ReturnType<typeof doc>;
-          newStock: number;
-        }> = [];
-
-        // 1. Fase de Lectura: Consultamos el stock actual de cada producto de la orden
+        // Devolver cantidades al stock físico
+        const items = (orderData.items || []) as OrderItem[];
         for (const item of items) {
-          const productRef = doc(
-            db,
-            "usuarios",
-            user.uid,
-            "productos",
-            item.id,
-          );
+          // Saltar control para ítems rápidos o virtuales que no operan sobre el catálogo tradicional
+          if (
+            item.id.startsWith("venta-rapida-") ||
+            item.id.startsWith("quick-")
+          ) {
+            continue;
+          }
+
+          const productRef = doc(db, "usuarios", uid, "productos", item.id);
           const productSnap = await transaction.get(productRef);
 
           if (productSnap.exists()) {
-            const productData = productSnap.data();
-            const currentStock = productData.stock ?? 0;
-
-            productUpdates.push({
-              ref: productRef,
-              newStock: currentStock + item.quantity, // 🔄 ¡Sumamos de nuevo lo vendido!
+            const currentStock = productSnap.data().stock ?? 0;
+            transaction.update(productRef, {
+              stock: currentStock + item.quantity,
             });
           }
         }
 
-        // 2. Fase de Escritura: Actualizamos los inventarios con el stock devuelto
-        productUpdates.forEach(({ ref, newStock }) => {
-          transaction.update(ref, { stock: newStock });
+        // Actualizar estado de la venta
+        transaction.update(orderRef, {
+          status: "canceled",
         });
-
-        // 3. Fase de Escritura: Marcamos la orden como cancelada
-        transaction.update(orderRef, { status: "canceled" });
       });
 
       alert(
-        "✅ ¡Orden cancelada con éxito! El dinero se restó y el stock fue devuelto.",
+        "🎉 ¡Orden cancelada! El stock ha sido reabastecido en tiempo real.",
       );
     } catch (error: any) {
-      console.error("Error al cancelar la orden:", error);
-      alert(
-        error.message || "No se pudo cancelar la orden. Intenta nuevamente.",
-      );
+      console.error("Error cancelling order:", error);
+      alert(error.message || "Ocurrió un error al intentar cancelar la venta.");
     }
   };
 
-  return (
-    <div>
-      <h1 className="text-2xl md:text-3xl font-bold mb-6">💰 Ventas</h1>
+  // Estilos sutiles de fondo y borde para las tarjetas según el método de pago
+  const getPaymentStyles = (method?: "cash" | "transfer") => {
+    if (method === "cash")
+      return "border-l-4 border-emerald-500 bg-emerald-50/20";
+    if (method === "transfer")
+      return "border-l-4 border-blue-500 bg-blue-50/20";
+    return "border-l-4 border-gray-200 bg-white";
+  };
 
-      {/* Cards resumen */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-xl shadow p-5">
-          <p className="text-gray-500 text-sm">Total ventas</p>
-          <p className="text-2xl md:text-3xl font-bold text-green-600">
-            ${totalVentas.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl shadow p-5">
-          <p className="text-gray-500 text-sm">Órdenes hoy</p>
-          <p className="text-2xl md:text-3xl font-bold text-blue-600">
-            {ordenesHoy}
-          </p>
-        </div>
-        <div className="bg-white rounded-xl shadow p-5">
-          <p className="text-gray-500 text-sm">Promedio por orden</p>
-          <p className="text-2xl md:text-3xl font-bold text-purple-600">
-            ${promedio.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".") || 0}
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="text-4xl animate-spin mb-4">⏳</div>
+          <p className="text-gray-600 font-semibold">
+            Cargando historial de ventas...
           </p>
         </div>
       </div>
+    );
+  }
 
-      {/* Tabla */}
-      <div className="bg-white rounded-xl shadow p-4 md:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <h2 className="text-lg font-semibold">Órdenes recientes</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center rounded-lg border border-gray-200 p-1">
-              <button
-                onClick={() => {
-                  setViewMode("all");
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                  viewMode === "all"
-                    ? "bg-orange-500 text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Todas
-              </button>
-              <button
-                onClick={() => {
-                  setViewMode("today");
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                  viewMode === "today"
-                    ? "bg-orange-500 text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Hoy
-              </button>
-            </div>
+  return (
+    <div className="p-4 md:p-6 bg-[#F0F4F8] min-h-screen text-gray-900 pb-28 md:pb-8">
+      {/* 🚀 ENCABEZADO RESPONSIVO */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-black text-gray-800 flex items-center gap-2">
+            💰 Historial de Ventas
+          </h1>
+          <p className="text-gray-500 text-sm mt-0.5">
+            Consulta cobros, concilia cajas y gestiona cancelaciones al vuelo.
+          </p>
+        </div>
+        <button
+          onClick={() => navigate("/")}
+          className="bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-black text-base px-4 py-2.5 rounded-xl uppercase tracking-wider transition-all shadow-md self-start sm:self-center"
+        >
+          🏪 Ir a Vender
+        </button>
+      </div>
 
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => {
-                setFilterDate(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            {(filterDate || viewMode === "today") && (
-              <button
-                onClick={() => {
-                  setFilterDate("");
-                  setViewMode("all");
-                  setCurrentPage(1);
-                }}
-                className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-              >
-                ✕ Limpiar
-              </button>
-            )}
+      {/* 📊 RESUMEN FINANCIERO DE RESPALDO (Gid responsiva compacta) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {/* Ventas Hoy */}
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+          <span className="text-2xl bg-orange-100 text-orange-600 p-3 rounded-xl">
+            📅
+          </span>
+          <div>
+            <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">
+              Órdenes Hoy
+            </p>
+            <p className="text-xl font-black text-gray-800">
+              {ordenesHoy} transacciones
+            </p>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[ 500px]">
-            <thead>
-              <tr className="text-left text-gray-500 border-b">
-                <th className="pb-3">Hora</th>
-                <th className="pb-3">Total</th>
-                <th className="pb-3">Realizado</th>
-                <th className="pb-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginated.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-gray-400">
-                    {filterDate
-                      ? "No hay órdenes en esa fecha"
-                      : "No hay órdenes aún"}
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((o) => (
-                  <tr>
-                    <td className="py-3">
-                      {getOrderDate(o.createdAt)?.toLocaleString() || "—"}
-                    </td>
-                    <td className="py-3 font-semibold text-green-600">
-                      $
-                      {o.total
-                        ?.toFixed(0)
-                        .replace(/\B(?=(\d{3})+(?!\d))/g, ".") || 0}
-                    </td>
-                    <td className="py-3">
-                      {o.status === "canceled" || o.status === "cancelled" ? (
-                        <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-medium justify-center items-center flex">
-                          ❌
-                        </span>
-                      ) : (
-                        <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium justify-center items-center flex">
-                          ✅
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSelectedOrder(o)}
-                          className="text-xs text-orange-500 hover:text-orange-600 font-semibold transition-colors"
-                        >
-                          Detalle Orden →
-                        </button>
-                        {o.status !== "canceled" &&
-                          o.status !== "cancelled" && (
-                            <button
-                              onClick={() => handleCancelOrder(o.id)}
-                              className="text-xs text-red-500 hover:text-red-600 font-semibold transition-colors"
-                            >
-                              Cancelar
-                            </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        {/* Total Ventas */}
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+          <span className="text-2xl bg-emerald-100 text-emerald-600 p-3 rounded-xl">
+            💰
+          </span>
+          <div>
+            <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">
+              Ingreso Acumulado
+            </p>
+            <p className="text-xl font-black text-emerald-600">
+              {formatMoney(totalVentas)}
+            </p>
+          </div>
         </div>
 
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
-            <p className="text-xs text-gray-400">
-              Mostrando {(currentPage - 1) * ORDERS_PER_PAGE + 1}–
-              {Math.min(currentPage * ORDERS_PER_PAGE, filtered.length)} de{" "}
-              {filtered.length} órdenes
+        {/* Ticket Promedio */}
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-3">
+          <span className="text-2xl bg-blue-100 text-blue-600 p-3 rounded-xl">
+            📈
+          </span>
+          <div>
+            <p className="text-sm text-gray-400 font-bold uppercase tracking-wider">
+              Ticket Promedio
             </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage((p) => p - 1)}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+            <p className="text-xl font-black text-gray-800">
+              {formatMoney(promedio)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 🔍 FILTROS INTELIGENTES Y SECTORES DE NAVEGACIÓN (Diseñados para pantallas móviles) */}
+      <div className="mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Toggle de vistas tipo píldora */}
+        <div className="flex bg-gray-100 p-1 rounded-xl self-start">
+          <button
+            onClick={() => {
+              setViewMode("all");
+              setCurrentPage(1);
+            }}
+            className={`px-4 py-2 text-sm font-black rounded-lg transition-all ${
+              viewMode === "all"
+                ? "bg-white text-gray-800 shadow-sm"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            Todas las Ventas
+          </button>
+          <button
+            onClick={() => {
+              setViewMode("today");
+              setCurrentPage(1);
+            }}
+            className={`px-4 py-2 text-sm font-black rounded-lg transition-all ${
+              viewMode === "today"
+                ? "bg-white text-orange-500 shadow-sm"
+                : "text-gray-400 hover:text-orange-400"
+            }`}
+          >
+            Solo Hoy ✨
+          </button>
+        </div>
+
+        {/* Buscador de fecha sutil */}
+        <div className="flex items-center gap-2 self-start w-full md:w-auto">
+          <span className="text-base text-gray-400 font-bold hidden sm:inline">
+            Buscar Día:
+          </span>
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => {
+              setFilterDate(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full md:w-auto px-4 py-2.5 rounded-xl border border-gray-200 text-base font-black text-orange-600 bg-orange-50/50 focus:outline-none focus:border-orange-500 cursor-pointer"
+          />
+          {filterDate && (
+            <button
+              onClick={() => {
+                setFilterDate("");
+                setCurrentPage(1);
+              }}
+              className="text-sm font-bold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition-all"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 📱 CONTENEDOR DE TARJETAS RESPONSIVAS (MÓVIL Y DESKTOP) */}
+      <div className="space-y-4">
+        {paginated.length > 0 ? (
+          paginated.map((order) => {
+            const date = getOrderDate(order.createdAt);
+            const timeString = date
+              ? date.toLocaleTimeString("es-CO", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "Hora sin registrar";
+            const dateString = date
+              ? date.toLocaleDateString("es-CO", {
+                  day: "numeric",
+                  month: "short",
+                })
+              : "Sin fecha";
+
+            const isCanceled = order.status === "canceled";
+            const isExpanded = expandedOrderId === order.id;
+
+            return (
+              <div
+                key={order.id}
+                onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                className={`p-4 rounded-2xl shadow-sm border border-gray-100 transition-all cursor-pointer hover:shadow-md ${getPaymentStyles(
+                  order.paymentMethod,
+                )}`}
               >
-                ← Anterior
-              </button>
-              <span className="text-sm text-gray-500">
-                {currentPage} / {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage((p) => p + 1)}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors"
-              >
-                Siguiente →
-              </button>
-            </div>
+                {/* Cabecera de la Tarjeta */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-400 uppercase">
+                      {dateString} - {timeString}
+                    </span>
+                    {/* Badge de Método de Pago con colores de ráfaga */}
+                    <span
+                      className={`text-sm font-black uppercase px-2 py-0.5 rounded-md ${
+                        order.paymentMethod === "cash"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-blue-100 text-blue-800"
+                      }`}
+                    >
+                      {order.paymentMethod === "cash"
+                        ? "💵 Efectivo"
+                        : "🏦 Transferencia"}
+                    </span>
+                  </div>
+
+                  {/* Estado Realizada o Cancelada */}
+                  <span
+                    className={`text-sm font-black uppercase px-2 py-0.5 rounded-md ${
+                      isCanceled
+                        ? "bg-red-100 text-red-700"
+                        : "bg-green-100 text-green-700"
+                    }`}
+                  >
+                    {isCanceled ? "❌ Cancelada" : "✓ Realizada"}
+                  </span>
+                </div>
+
+                {/* Info Principal y Monto */}
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-gray-800 text-base truncate">
+                      Venta #{order.id.slice(-6).toUpperCase()}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-0.5">
+                      {order.items?.length || 0}{" "}
+                      {order.items?.length === 1 ? "ítem" : "ítems"} registrados
+                    </p>
+                  </div>
+
+                  {/* Precio Grande */}
+                  <div className="text-right">
+                    <p
+                      className={`text-xl font-black ${
+                        isCanceled
+                          ? "text-gray-400 line-through"
+                          : "text-gray-900"
+                      }`}
+                    >
+                      {formatMoney(order.total)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 📌 CONTENIDO DESPLEGABLE CON DETALLES DE LA ORDEN */}
+                {isExpanded && (
+                  <div
+                    className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-fade-in"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <h4 className="text-sm font-black text-gray-400 uppercase tracking-widest">
+                      Detalle de Productos
+                    </h4>
+                    <div className="space-y-2">
+                      {order.items?.map((item, idx) => (
+                        <div
+                          key={`${item.id}-${idx}`}
+                          className="flex justify-between items-center bg-white/50 p-2.5 rounded-xl border border-gray-50 text-base"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-gray-700 truncate">
+                              {item.title || item.name}
+                            </p>
+                            <p className="text-sm text-gray-400">
+                              {item.quantity} un. x {formatMoney(item.price)}
+                            </p>
+                          </div>
+                          <p className="font-black text-gray-800 ml-4">
+                            {formatMoney(item.price * item.quantity)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Botón de Cancelación de Venta (Solo si no está ya cancelada) */}
+                    {!isCanceled && (
+                      <div className="pt-2 flex justify-end">
+                        <button
+                          onClick={() => handleCancelOrder(order.id)}
+                          className="bg-red-50 hover:bg-red-100 text-red-600 active:scale-95 font-black text-sm uppercase tracking-wider px-3.5 py-2 rounded-xl border border-red-200 transition-all flex items-center gap-1"
+                        >
+                          🗑️ Cancelar Venta
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          /* ESTADO VACÍO CÁLIDO */
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+            <span className="text-5xl mb-4 block">🏪</span>
+            <p className="text-gray-600 text-base font-semibold">
+              No registras ventas para este filtro
+            </p>
+            <p className="text-gray-400 text-sm mt-1">
+              Las ventas que registre tu mamá en el mostrador aparecerán
+              listadas aquí en tiempo real.
+            </p>
           </div>
         )}
       </div>
 
-      {/* Modal detalle orden */}
-      {selectedOrder && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedOrder(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
+      {/* 🧭 BOTONES DE PAGINACIÓN RESPONSIVOS */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-6 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 text-sm font-black bg-gray-50 border border-gray-100 text-gray-600 rounded-xl hover:bg-gray-100 disabled:opacity-40 transition-colors"
           >
-            {/* Header modal */}
-            <div className="p-5 border-b flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-lg">Detalle de orden</h3>
-                <p className="text-xs text-gray-400 mt-0.5"></p>
-                <p className="text-sm text-gray-500 mt-1">
-                  {(selectedOrder as any).customerName ||
-                    selectedOrder.userEmail ||
-                    "—"}
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  {getOrderDate(selectedOrder.createdAt)?.toLocaleString() ||
-                    "—"}
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Items */}
-            <div className="p-5 flex flex-col gap-3">
-              {selectedOrder.items?.length ? (
-                selectedOrder.items.map((item) => {
-                  const itemName =
-                    item.title || item.name || "Producto sin nombre";
-
-                  return (
-                    <div key={item.id} className="flex items-center gap-3">
-                      {item.image && (
-                        <img
-                          src={item.image}
-                          alt={itemName}
-                          className="w-12 h-12 object-contain rounded-lg border border-gray-100"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{itemName}</p>
-
-                        <p className="text-xs text-gray-400">
-                          {item.quantity} × ${item.price?.toFixed(0)}
-                        </p>
-                      </div>
-                      <p className="text-sm font-semibold text-green-600">
-                        $
-                        {(item.price * item.quantity)
-                          .toFixed(0)
-                          .replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                      </p>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-sm text-gray-400 text-center py-4">
-                  No hay items registrados
-                </p>
-              )}
-            </div>
-
-            {/* Footer total */}
-            <div className="p-5 border-t flex justify-between items-center">
-              <span className="font-semibold text-gray-700">Total</span>
-              <span className="text-xl font-bold text-green-600">
-                $
-                {selectedOrder.total
-                  ?.toFixed(0)
-                  .replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-              </span>
-            </div>
-          </div>
+            ◀ Anterior
+          </button>
+          <span className="text-sm font-black text-gray-500">
+            Página {currentPage} de {totalPages}
+          </span>
+          <button
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 text-sm font-black bg-gray-50 border border-gray-100 text-gray-600 rounded-xl hover:bg-gray-100 disabled:opacity-40 transition-colors"
+          >
+            Siguiente ▶
+          </button>
         </div>
       )}
     </div>
