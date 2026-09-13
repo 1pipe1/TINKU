@@ -27,23 +27,28 @@ const HomePage: FC = () => {
   const clearActiveDraftId = useCartStore((state) => state.clearActiveDraftId);
   const getTotalPrice = useCartStore((state) => state.getTotalPrice);
   const getTotalItems = useCartStore((state) => state.getTotalItems);
-
+  const addToCart = useCartStore((state) => state.addToCart);
+  
   const totalPrice = getTotalPrice();
   const totalItems = getTotalItems();
 
   // 1. Carga limpia de productos pasándole el UID privado (Multi-tenant)
   useEffect(() => {
     const loadProducts = async () => {
-      if (!user?.uid) return;
+      const uid = user?.uid || user?.uid;
+      if (!uid) {
+        setLoading(false);
+        return;
+      }
       try {
-        await fetchProducts(user.uid);
+        await fetchProducts(uid);
       } finally {
         setLoading(false);
       }
     };
 
     loadProducts();
-  }, [fetchProducts, user?.uid]);
+  }, [fetchProducts, user?.uid, user?.uid]);
 
   // 2. Limpieza de borradores/drafts cuando el carrito se vacía
   useEffect(() => {
@@ -55,7 +60,7 @@ const HomePage: FC = () => {
       } catch (error) {
         console.error(
           "Error deleting resumed draft after cart was cleared:",
-          error,
+          error
         );
       } finally {
         clearActiveDraftId();
@@ -65,10 +70,40 @@ const HomePage: FC = () => {
     cleanupDraft();
   }, [activeDraftId, cart.length, clearActiveDraftId]);
 
+  // ⚡ Lógica limpia de Venta Express / Agregar Producto
+  const handleAddProduct = (searchQuery: string, expressPrice?: number) => {
+    const existingProduct = products.find(
+      (p) =>
+        (p.title || (p as any).nombre || (p as any).name || "")
+          .toLowerCase() === searchQuery.toLowerCase() ||
+        (p as any).sku === searchQuery
+    );
+
+    if (existingProduct) {
+      // SÍ EXISTE: Flujo normal sin fricción
+      addToCart({ ...existingProduct, quantity: 1 });
+    } else {
+      // NO EXISTE: Inyectamos un ítem virtual Express al carrito inmediatamente ⚡
+      const expressItem = {
+        id: "express-" + Date.now(), // ID temporal único para el carrito
+        sku: "EXP-" + Date.now(),
+        title: searchQuery || "Producto Express",
+        quantity: 1,
+        price: expressPrice || 0, // Precio digitado al vuelo
+        cost: 0, // Aún no sabemos el costo
+        stock: 999, // Stock infinito virtual para que no rebote
+        category: "Venta Express",
+        isExpress: true, // 🌟 LA BANDERA CLAVE
+      };
+
+      addToCart(expressItem as any);
+    }
+  };
+
   // 🚪 Función de Cierre de Sesión Blindada contra Clics por Error
   const handleSafeLogout = async () => {
     const confirmLogout = window.confirm(
-      "⚠️ ¿Estás seguro de que deseas cerrar sesión de tu cuenta de TINKU?\n\nEsto bloqueará el mostrador hasta que vuelvas a ingresar tus datos de acceso.",
+      "⚠️ ¿Estás seguro de que deseas cerrar sesión de tu cuenta de TINKU?\n\nEsto bloqueará el mostrador hasta que vuelvas a ingresar tus datos de acceso."
     );
     if (confirmLogout) {
       await logout();
@@ -87,7 +122,7 @@ const HomePage: FC = () => {
       <div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center">
         <div className="text-center">
           <div className="text-4xl animate-spin mb-4">⏳</div>
-          <p className="text-gray-600">Cargando productos de tu tienda...</p>
+          <p className="text-gray-600 font-semibold">Cargando productos de tu tienda...</p>
         </div>
       </div>
     );
@@ -99,7 +134,7 @@ const HomePage: FC = () => {
       <Navbar
         search={search}
         onSearchChange={(val) => setSearch(val)}
-        onCheckout={() => setIsCartOpen(true)} // 🔥 ¡En lugar de ir a otra página, deslizamos el carrito en caliente!
+        onCheckout={() => setIsCartOpen(true)}
       />
 
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
@@ -125,7 +160,7 @@ const HomePage: FC = () => {
               onClick={() => navigate("/admin/stock")}
               className="text-gray-600 hover:text-orange-500 font-bold text-sm px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-all"
             >
-              📦 Stock
+              📦 Inventario
             </button>
             <button
               onClick={() => navigate("/admin/sales")}
@@ -155,7 +190,7 @@ const HomePage: FC = () => {
               <h3 className="font-black text-base tracking-wide">
                 Cobro Express
               </h3>
-              <p className="text-xs  text-orange-100 mt-0.5">
+              <p className="text-xs text-orange-100 mt-0.5">
                 Suma y cobra al vuelo sin digitar inventario
               </p>
             </div>
@@ -173,25 +208,46 @@ const HomePage: FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6">
-            <p className="text-gray-600 text-lg font-medium">
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+            <span className="text-3xl mb-2 block font-black">⚡</span>
+            <p className="text-gray-700 text-lg font-bold">
               {search
                 ? `No se encontraron productos para "${search}"`
                 : "No hay productos disponibles en tu tienda todavía."}
             </p>
-            <p className="text-gray-400 text-sm mt-1">
+            <p className="text-gray-400 text-xs mt-1 mb-4">
               {search
-                ? "Prueba con otra palabra clave"
+                ? "Agrégalo como Venta Express para cobrarlo sin trancar la fila."
                 : "Ve al gestor de Stock para agregar productos."}
             </p>
 
             {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="mt-4 text-orange-500 font-semibold rounded-md text-sm hover:underline"
-              >
-                Limpiar búsqueda
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center items-center max-w-xs mx-auto">
+                <button
+                  onClick={() => {
+                    const priceStr = prompt(
+                      `¿A cómo vas a vender "${search}"?`,
+                      "1000"
+                    );
+                    if (priceStr === null) return;
+                    const price = parseFloat(priceStr || "0");
+                    if (price > 0) {
+                      handleAddProduct(search, price);
+                      setSearch("");
+                      setIsCartOpen(true);
+                    }
+                  }}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  ⚡ Cobrar "{search}" Rápido
+                </button>
+                <button
+                  onClick={() => setSearch("")}
+                  className="w-full text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-100 px-3 py-2.5 rounded-xl transition-all cursor-pointer"
+                >
+                  Limpiar búsqueda
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -283,7 +339,9 @@ const HomePage: FC = () => {
           className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all"
         >
           <span className="text-xl">📦</span>
-          <span className="text-[11px] tracking-wide font-bold">Stock</span>
+          <span className="text-[11px] tracking-wide font-bold">
+            Inventario
+          </span>
         </button>
 
         {/* Ventas */}

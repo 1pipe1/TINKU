@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, StateStorage, createJSONStorage } from "zustand/middleware";
 
+
 type Product = {
   id: string;
   title?: string;
@@ -10,10 +11,13 @@ type Product = {
   // stock disponible en inventario (opcional). Si está presente, el store respetará este límite.
   stock?: number;
   quantity?: number;
+  category?: string;
+  
 };
 
 type CartItem = Product & {
   quantity: number;
+  isExpress?: boolean;
 };
 
 type CartState = {

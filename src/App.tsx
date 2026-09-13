@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import useAuthStore from "./store/useAuthStore";
 import useCartStore from "./store/useCartStore"; // 🔥 1. IMPORTA EL STORE DEL CARRITO
 import AuthPage from "./pages/AuthPage";
@@ -46,7 +46,7 @@ function App() {
           }
         >
           <Route index element={<DashboardPage />} />
-          <Route path="stock" element={<StockPage />} />
+          <Route path="stock" element={<StockPage/>} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="drafts" element={<SuspendedSalesPage />} />
         </Route>

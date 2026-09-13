@@ -80,7 +80,7 @@ const AdminLayout = () => {
           }`}
         >
           <span className="text-xl">📦</span>
-          <span className="text-[11px] tracking-wide font-bold">Stock</span>
+          <span className="text-[11px] tracking-wide font-bold">Inventario</span>
         </button>
 
         {/* Ventas */}

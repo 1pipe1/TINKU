@@ -15,7 +15,7 @@ const AdminSidebar = () => {
 
   const links = [
     { to: "/admin", label: "Dashboard", icon: "📊" },
-    { to: "/admin/stock", label: "Stock", icon: "📦" },
+    { to: "/admin/stock", label: "Inventario", icon: "📦" },
     { to: "/admin/sales", label: "Ventas", icon: "💰" },
     { to: "/admin/drafts", label: "Ventas suspendidas", icon: "⏸️" },
   ];

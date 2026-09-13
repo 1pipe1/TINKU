@@ -170,7 +170,7 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity">
+    <div className="fixed inset-0 z-200 flex items-end justify-center bg-black/60 backdrop-blur-sm transition-opacity">
       {/* Fondo clickeable para cerrar */}
       <div
         className="absolute inset-0"

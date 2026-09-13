@@ -94,7 +94,8 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
   // Procesar la venta directamente (Estructura Multitenant Atómica)
   const handleConfirmPurchase = async () => {
-    if (!user?.uid) {
+    const uid = user?.uid || user?.uid;
+    if (!uid) {
       setError("Debes iniciar sesión para procesar la venta.");
       return;
     }
@@ -120,12 +121,17 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
         // 1. Fase de Lectura (Obligatoria dentro de la carpeta del usuario activo)
         for (const item of cart) {
-          // Saltar control para ítems rápidos o virtuales si existen
-          if (item.id.startsWith("venta-rapida-") || item.id.startsWith("quick-")) {
+          // ⚡ SALTAR CONTROL DE STOCK PARA PRODUCTOS EXPRESS O VIRTUALES
+          if (
+            item.isExpress ||
+            item.id.startsWith("express-") ||
+            item.id.startsWith("venta-rapida-") ||
+            item.id.startsWith("quick-")
+          ) {
             continue;
           }
 
-          const productRef = doc(db, "usuarios", user.uid, "productos", item.id);
+          const productRef = doc(db, "usuarios", uid, "productos", item.id);
           const productSnapshot = await transaction.get(productRef);
 
           if (!productSnapshot.exists()) {
@@ -145,13 +151,13 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
           });
         }
 
-        // 2. Fase de Escritura (Descontar existencias)
+        // 2. Fase de Escritura (Descontar existencias solo de productos reales)
         productUpdates.forEach(({ ref, newStock }) => {
           transaction.update(ref, { stock: newStock });
         });
 
         // 3. Crear la orden de venta bajo la subcolección del usuario (Multi-tenant)
-        const newOrderRef = doc(collection(db, "usuarios", user.uid, "orders"));
+        const newOrderRef = doc(collection(db, "usuarios", uid, "orders"));
         transaction.set(newOrderRef, {
           customerName: "Cliente",
           paymentMethod,
@@ -163,12 +169,13 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             price: item.price,
             quantity: item.quantity,
             image: item.image || "",
+            isExpress: !!(item.isExpress || item.id.startsWith("express-")), // 🌟 Preserva bandera Express
             soldBy: user.email || "guest",
-            sellerUid: user.uid,
+            sellerUid: uid,
           })),
           total: totalPrice,
           status: "completed",
-          createdBy: user.uid,
+          createdBy: user.uid || uid,
           createdAt: serverTimestamp(),
         });
       });
@@ -210,7 +217,7 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             <span className="text-2xl">🛒</span>
             <div>
               <h2 className="font-black text-gray-800 text-lg leading-tight">Mostrador de Cobro</h2>
-              <p className="text-sm text-gray-500 font-bold tracking-wide">
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
                 {cart.length} productos agregados
               </p>
             </div>
@@ -229,14 +236,14 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-white">
             <div className="text-7xl mb-4">🎉</div>
             <h3 className="text-2xl font-black text-green-600">¡Venta Coronada!</h3>
-            <p className="text-gray-600 text-base mt-2 max-w-xs leading-relaxed">
+            <p className="text-gray-500 text-sm mt-2 max-w-xs leading-relaxed">
               La venta ha sido registrada y el inventario se descontó correctamente en la nube.
             </p>
 
             <div className="mt-8 w-full space-y-3">
               <button
                 onClick={onClose}
-                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-black py-4 rounded-2xl shadow-lg shadow-orange-500/10 transition-all text-base"
+                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-black py-4 rounded-2xl shadow-lg shadow-orange-500/10 transition-all text-sm uppercase tracking-wider cursor-pointer"
               >
                 Volver a Vender 🏪
               </button>
@@ -247,12 +254,12 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
             <span className="text-6xl mb-4">🛒</span>
             <h3 className="font-black text-gray-700 text-lg">Tu carrito está vacío</h3>
-            <p className="text-gray-600 text-base mt-1 max-w-xs">
+            <p className="text-gray-400 text-xs mt-1 max-w-xs">
               Toca los productos del catálogo de fondo para agregarlos al mostrador.
             </p>
             <button
               onClick={onClose}
-              className="mt-6 bg-white border border-gray-250 text-gray-700 font-bold px-5 py-3 rounded-xl text-base hover:bg-gray-50 transition-colors shadow-sm"
+              className="mt-6 bg-white border border-gray-250 text-gray-700 font-bold px-5 py-2.5 rounded-xl text-xs hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
             >
               Ver productos
             </button>
@@ -263,7 +270,7 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             
             {/* LISTA DE ITEMS */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3.5 space-y-3">
-              <h3 className="text-sm font-black text-gray-600 tracking-wide">Detalle del pedido</h3>
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Detalle del Pedido</h3>
               <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
                 {cart.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
@@ -272,26 +279,35 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                       {item.image && item.image.trim() !== "" ? (
                         <img src={item.image} alt={item.title || item.name} className="w-8 h-8 object-contain" />
                       ) : (
-                        <span className="text-lg">📦</span>
+                        <span className="text-lg">
+                          {item.isExpress || item.id.startsWith("express-") ? "⚡" : "📦"}
+                        </span>
                       )}
                     </div>
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-800 text-base truncate">{item.title || item.name}</p>
-                      <p className="text-sm text-orange-600 font-black mt-0.5">{formatMoney(item.price)}</p>
+                      <p className="font-bold text-gray-800 text-xs truncate">
+                        {item.title || item.name}
+                        {(item.isExpress || item.id.startsWith("express-")) && (
+                          <span className="ml-1 text-[9px] font-black text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">
+                            Express
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-orange-500 font-black mt-0.5">{formatMoney(item.price)}</p>
                     </div>
                     {/* Controles de cantidad */}
                     <div className="flex items-center gap-2 bg-gray-100 px-2 py-1 rounded-full shrink-0">
                       <button
                         onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                        className="text-lg font-bold text-gray-500 hover:text-red-500 w-9 h-9 flex items-center justify-center rounded-full hover:bg-white transition-all"
+                        className="text-xs font-bold text-gray-500 hover:text-red-500 w-5 h-5 flex items-center justify-center rounded-full hover:bg-white transition-all cursor-pointer"
                       >
                         -
                       </button>
-                      <span className="text-base font-black text-gray-700 w-5 text-center">{item.quantity}</span>
+                      <span className="text-xs font-black text-gray-700 w-4 text-center">{item.quantity}</span>
                       <button
                         onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                        className="text-lg font-bold text-gray-500 hover:text-green-500 w-9 h-9 flex items-center justify-center rounded-full hover:bg-white transition-all"
+                        className="text-xs font-bold text-gray-500 hover:text-green-500 w-5 h-5 flex items-center justify-center rounded-full hover:bg-white transition-all cursor-pointer"
                       >
                         +
                       </button>
@@ -299,7 +315,7 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                     {/* Basura */}
                     <button
                       onClick={() => removeFromCart(item.id)}
-                      className="text-gray-300 hover:text-red-500 p-1.5 rounded-lg transition-colors shrink-0"
+                      className="text-gray-300 hover:text-red-500 p-1.5 rounded-lg transition-colors shrink-0 cursor-pointer"
                       title="Quitar del carrito"
                     >
                       🗑️
@@ -311,32 +327,32 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
             {/* MÉTODOS DE PAGO */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3.5 space-y-3">
-              <h3 className="text-sm font-black text-gray-600 tracking-wide">Método de pago</h3>
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Método de Pago</h3>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setPaymentMethod("cash")}
-                  className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                  className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     paymentMethod === "cash"
                       ? "border-orange-500 bg-orange-50 text-orange-700"
                       : "border-gray-100 hover:border-gray-200 text-gray-600 bg-gray-50"
                   }`}
                 >
                   <span className="text-xl">💵</span>
-                  <span className="text-base">Efectivo</span>
+                  <span className="text-xs">Efectivo</span>
                 </button>
                 <button
                   onClick={() => {
                     setPaymentMethod("transfer");
                     setCashReceived(""); // Limpiar efectivo si cambia
                   }}
-                  className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                  className={`p-3 rounded-xl border-2 font-bold flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     paymentMethod === "transfer"
                       ? "border-orange-500 bg-orange-50 text-orange-700"
                       : "border-gray-100 hover:border-gray-200 text-gray-600 bg-gray-50"
                   }`}
                 >
                   <span className="text-xl">🏦</span>
-                  <span className="text-base">Banco / digital</span>
+                  <span className="text-xs">Banco / Digital</span>
                 </button>
               </div>
             </div>
@@ -345,10 +361,10 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             {paymentMethod === "cash" && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3.5 space-y-3">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-black text-gray-600 tracking-wide">Efectivo recibido</h3>
+                  <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo Recibido</h3>
                   <button
                     onClick={handleSetExactCash}
-                    className="text-sm font-black text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-lg hover:bg-orange-100 transition-colors"
+                    className="text-[10px] font-black text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg hover:bg-orange-100 transition-colors cursor-pointer"
                   >
                     Exacto 👉 {formatMoney(totalPrice)}
                   </button>
@@ -361,12 +377,12 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                     placeholder="¿Con cuánto pagaron?"
                     value={cashReceived}
                     onChange={(e) => setCashReceived(e.target.value)}
-                    className="w-full pl-8 pr-12 py-3 rounded-xl border border-gray-200 font-black text-base text-gray-800 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-all"
+                    className="w-full pl-8 pr-12 py-3 rounded-xl border border-gray-200 font-black text-sm text-gray-800 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-all"
                   />
                   {cashReceived && (
                     <button
                       onClick={() => setCashReceived("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-sm transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-400 text-xs transition-colors cursor-pointer"
                     >
                       ✕
                     </button>
@@ -379,9 +395,9 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                     <button
                       key={`quick-${val}`}
                       onClick={() => handleQuickCash(val)}
-                      className="py-2.5 bg-gray-50 border border-gray-100 hover:bg-gray-100 text-sm font-black text-gray-600 rounded-lg transition-colors"
+                      className="py-2 bg-gray-50 border border-gray-100 hover:bg-gray-100 text-[10px] font-black text-gray-600 rounded-lg transition-colors cursor-pointer"
                     >
-                      +{val / 1000}k
+                      +${val / 1000}k
                     </button>
                   ))}
                 </div>
@@ -389,7 +405,7 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
                 {/* Devuelta en letras gigantes */}
                 {parseFloat(cashReceived) >= totalPrice && (
                   <div className="bg-green-50 border border-green-200 rounded-2xl p-3 flex justify-between items-center">
-                    <span className="text-sm font-bold text-green-700">Devuelta al cliente:</span>
+                    <span className="text-xs font-bold text-green-700">Devuelta al cliente:</span>
                     <span className="text-xl font-black text-green-700">{formatMoney(changeAmount)}</span>
                   </div>
                 )}
@@ -398,7 +414,7 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
             {/* Alertas de error */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-sm font-semibold leading-relaxed">
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-xs font-semibold leading-relaxed">
                 ⚠️ {error}
               </div>
             )}
@@ -410,14 +426,14 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
         {!success && cart.length > 0 && (
           <div className="bg-white border-t border-gray-100 p-4 space-y-3.5 shadow-md">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-bold text-gray-600">Total a cobrar</span>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total a Cobrar</span>
               <span className="text-2xl font-black text-orange-600">{formatMoney(totalPrice)}</span>
             </div>
 
             <button
               onClick={handleConfirmPurchase}
               disabled={loading || (paymentMethod === "cash" && (!cashReceived || parseFloat(cashReceived) < totalPrice))}
-              className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 active:scale-98 text-white font-black py-4 rounded-2xl text-base transition-all uppercase tracking-wider flex items-center justify-center gap-2"
+              className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 active:scale-98 text-white font-black py-4 rounded-2xl text-base transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? (
                 <>

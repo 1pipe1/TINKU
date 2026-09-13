@@ -1,21 +1,15 @@
 import { useEffect, useState } from "react";
-import {
-  doc,
-  updateDoc,
-  deleteDoc,
-  addDoc,
-  collection,
-} from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, addDoc, collection } from "firebase/firestore";
 import { db } from "../firebase";
 import useStockStore from "../store/useStockStore";
 import useAuthStore from "../store/useAuthStore";
 import type { Product } from "../types/product";
-import useauthStore from "../store/useAuthStore";
 
 const emptyForm = {
   title: "",
-  categoria: "",
-  precio: "",
+  category: "",
+  price: "",
+  cost: "",
   stock: "",
   image: "",
 };
@@ -26,40 +20,45 @@ const StockPage = () => {
   const products = useStockStore((state) => state.products);
   const fetchProducts = useStockStore((state) => state.fetchProducts);
   const user = useAuthStore((state) => state.user);
-
+  
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<StockForm>(emptyForm);
+  const [search, setSearch] = useState("");
+
+  const uid = user?.uid || user?.id;
 
   useEffect(() => {
-    if (user?.uid) {
-      fetchProducts(user.uid).then(() => setLoading(false));
+    if (uid) {
+      fetchProducts(uid).then(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, [fetchProducts, user?.uid]);
+  }, [fetchProducts, uid]);
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setForm({
       title: product.title ?? product.name ?? "",
-      categoria: product.category ?? "",
-      precio: String(product.price ?? 0),
-      stock: String(product.stock),
+      category: product.category ?? "",
+      price: String(product.price ?? 0),
+      cost: String(product.cost ?? 0),
+      stock: String(product.stock ?? 0),
       image: product.image ?? "",
     });
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este producto?")) return;
-    if (!user?.uid) return;
-
+  const handleDelete = async (id: string, productName: string) => {
+    const confirmDelete = confirm(
+      `⚠️ ¿Estás seguro de que deseas eliminar "${productName}" de tu catálogo?`
+    );
+    if (!confirmDelete || !uid) return;
+    
     try {
-      // 🛡️ MULTI-TENANT: Borra de la subcolección del usuario
-      await deleteDoc(doc(db, "usuarios", user.uid, "productos", id));
-      await fetchProducts(user.uid);
+      await deleteDoc(doc(db, "usuarios", uid, "productos", id));
+      await fetchProducts(uid);
     } catch (error) {
       console.error("Error al eliminar producto:", error);
       alert("No se pudo eliminar el producto.");
@@ -68,255 +67,219 @@ const StockPage = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user?.uid) return;
-
-    // Mapeamos los campos al formato que guarda Firestore
+    if (!uid) return;
+    
     const data = {
       nombre: form.title.trim(),
-      categoria: form.categoria.trim() || "General",
-      precio: parseFloat(form.precio) || 0,
+      title: form.title.trim(),
+      categoria: form.category.trim() || "General",
+      precio: parseFloat(form.price) || 0,
+      costo: parseFloat(form.cost) || 0,
       stock: parseInt(form.stock, 10) || 0,
       image: form.image.trim(),
     };
 
     try {
       if (editingProduct) {
-        await updateDoc(
-          doc(db, "usuarios", user.uid, "productos", editingProduct.id),
-          data,
-        );
+        await updateDoc(doc(db, "usuarios", uid, "productos", editingProduct.id), data);
       } else {
-        await addDoc(collection(db, "usuarios", user.uid, "productos"), data);
+        await addDoc(collection(db, "usuarios", uid, "productos"), data);
       }
-
       setShowForm(false);
       setEditingProduct(null);
       setForm(emptyForm);
-      await fetchProducts(user.uid);
+      await fetchProducts(uid);
     } catch (error) {
       console.error("Error al guardar producto:", error);
       alert("Hubo un error al guardar los datos.");
     }
   };
 
-  if (loading)
-    return <p className="p-8 text-gray-500">Cargando productos...</p>;
+  const filteredProducts = products.filter((p) => {
+    const name = p.title || p.name || "";
+    return name.toLowerCase().includes(search.toLowerCase());
+  });
+
+  if (loading) return <p className="p-8 text-gray-500 text-center text-lg font-bold">Cargando inventario...</p>;
+
   return (
-    <div>
-      {" "}
-      {/* Header */}{" "}
-      <div className="flex justify-between items-center mb-6 p-4 bg-gray-100 rounded-lg">
-        {" "}
-        <h1 className="text-2xl font-bold">📦 Stock</h1>{" "}
+    <div className="p-4 md:p-6 max-w-5xl mx-auto bg-[#F0F4F8] min-h-screen pb-28">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 p-5 bg-white rounded-2xl shadow-sm border border-gray-100">
+        <div>
+          <h1 className="text-xl md:text-2xl font-black text-gray-800 flex items-center gap-2">
+            📦 Control de Stock
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">Administra tus productos e inventario privado</p>
+        </div>
         <button
           onClick={() => {
             setEditingProduct(null);
             setForm(emptyForm);
             setShowForm(true);
           }}
-          className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-lg text-sm"
+          className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-black px-5 py-2.5 rounded-xl text-sm transition-all shadow-md"
         >
-          {" "}
-          + Agregar{" "}
-        </button>{" "}
+          + Agregar Producto
+        </button>
       </div>
-      {/* Modal */}
+
+      {/* Buscador */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="🔍 Buscar producto en tu inventario..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full px-4 py-3 bg-white rounded-xl border border-gray-200 text-sm font-semibold focus:outline-none focus:border-orange-500 shadow-xs"
+        />
+      </div>
+
+      {/* Formulario Modal / Card */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">
-              {editingProduct ? "Editar producto" : "Agregar producto"}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="mb-6 p-5 bg-white rounded-2xl shadow-lg border border-orange-100 animate-fadeIn">
+          <h2 className="text-base font-bold text-gray-800 mb-3">
+            {editingProduct ? "✏️ Editar Producto" : "➕ Nuevo Producto"}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Nombre</label>
               <input
-                className="w-full border rounded-lg p-2 text-sm"
-                placeholder="Nombre"
+                type="text"
+                required
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                required
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:outline-none focus:border-orange-500"
+                placeholder="Ej. Coca Cola 1.5L"
               />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Categoría</label>
               <input
-                className="w-full border rounded-lg p-2 text-sm"
-                placeholder="Categoría"
-                value={form.categoria}
-                onChange={(e) =>
-                  setForm({ ...form, categoria: e.target.value })
-                }
+                type="text"
                 required
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:outline-none focus:border-orange-500"
+                placeholder="Ej. Bebidas"
               />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Precio Venta ($)</label>
               <input
-                className="w-full border rounded-lg p-2 text-sm"
-                placeholder="Precio"
                 type="number"
-                value={form.precio}
-                onChange={(e) => setForm({ ...form, precio: e.target.value })}
                 required
+                min="0"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:outline-none focus:border-orange-500"
               />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Costo Proveedor ($)</label>
               <input
-                className="w-full border rounded-lg p-2 text-sm"
-                placeholder="Stock"
                 type="number"
+                min="0"
+                value={form.cost}
+                onChange={(e) => setForm({ ...form, cost: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:outline-none focus:border-orange-500"
+                placeholder="Opcional"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Stock Actual (Unidades)</label>
+              <input
+                type="number"
+                required
+                min="0"
                 value={form.stock}
                 onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                required
+                className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold focus:outline-none focus:border-orange-500"
               />
-              <input
-                className="w-full border rounded-lg p-2 text-sm"
-                placeholder="URL de imagen"
-                value={form.image}
-                onChange={(e) => setForm({ ...form, image: e.target.value })}
-              />
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 rounded-lg"
-                >
-                  {editingProduct ? "Guardar cambios" : "Agregar"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 rounded-lg"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </div>
+            </div>
+            <div className="sm:col-span-2 flex justify-end gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl text-xs transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-xl text-xs transition-all shadow-sm"
+              >
+                Guardar Producto
+              </button>
+            </div>
+          </form>
         </div>
       )}
-      {/* TABLA — solo desktop */}
-      <div className="hidden md:block">
-        <table className="bg-white rounded-xl shadow overflow-hidden w-full">
-          <thead className="bg-orange-500 text-white">
-            <tr>
-              <th className="p-3 text-left">Producto</th>
-              <th className="p-3 text-left">Categoría</th>
-              <th className="p-3 text-left">Precio</th>
-              <th className="p-3 text-left">Stock</th>
-              <th className="p-3 text-left">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((product) => {
-              const isOutOfStock = product.stock === 0;
-              const isLowStock = product.stock > 0 && product.stock <= 10;
-              return (
-                <tr
-                  key={product.id}
-                  className={`border-t border-gray-100 transition-colors ${isOutOfStock ? "bg-red-50 hover:bg-red-100" : isLowStock ? "bg-yellow-50 hover:bg-yellow-100" : "hover:bg-gray-50"}`}
-                >
-                  <td className="p-3 flex items-center gap-3">
-                    <img
-                      src={product.image}
-                      alt={product.title}
-                      className="w-10 h-10 object-contain"
-                    />
-                    <span className="text-sm font-medium">{product.title}</span>
-                  </td>
-                  <td className="p-3 text-sm text-gray-500">
-                    {product.category}
-                  </td>
-                  <td className="p-3 text-sm font-semibold text-orange-500">
-                    ${product.price.toLocaleString()}
-                  </td>
-                  <td className="p-3 text-sm font-semibold">
-                    <span
-                      className={
-                        isOutOfStock
-                          ? "text-red-600"
-                          : isLowStock
-                            ? "text-yellow-600"
-                            : "text-gray-700"
-                      }
-                    >
-                      {isOutOfStock
-                        ? "🚫 0"
-                        : isLowStock
-                          ? `⚠️ ${product.stock}`
-                          : product.stock}
-                    </span>
-                  </td>
-                  <td className="p-3 flex gap-2">
-                    <button
-                      onClick={() => handleEdit(product)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white text-xs py-1 px-3 rounded"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id)}
-                      className="bg-red-500 hover:bg-red-600 text-white text-xs py-1 px-3 rounded"
-                    >
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {/* CARDS — solo móvil */}
-      <div className="md:hidden space-y-3">
-        {products.map((product) => {
-          const isOutOfStock = product.stock === 0;
-          const isLowStock = product.stock > 0 && product.stock <= 10;
-          return (
-            <div
-              key={product.id}
-              className={`bg-white rounded-xl shadow p-4 border-l-4 ${isOutOfStock ? "border-red-400 bg-red-50" : isLowStock ? "border-yellow-400 bg-yellow-50" : "border-orange-400"}`}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <img
-                  src={product.image || null}
-                  alt={product.title}
-                  className="w-12 h-12 object-contain rounded-lg bg-gray-50"
-                />
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-800 text-sm leading-tight">
-                    {product.title}
-                  </p>
+
+      {/* Lista de productos */}
+      <div className="grid grid-cols-1 gap-3">
+        {filteredProducts.length > 0 ? (
+          filteredProducts.map((p) => {
+            const isOutOfStock = p.stock === 0;
+            const isLowStock = (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5;
+
+            return (
+              <div
+                key={p.id}
+                className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-xs border border-gray-100"
+              >
+                <div className="min-w-0 flex-1 pr-3">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-gray-800 text-sm truncate">
+                      {p.title || p.name || "Producto sin nombre"}
+                    </p>
+                    {isOutOfStock ? (
+                      <span className="text-[9px] font-black bg-red-100 text-red-700 px-2 py-0.5 rounded-md">
+                        🚫 Agotado
+                      </span>
+                    ) : isLowStock ? (
+                      <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-md">
+                        ⚠️ Bajo ({p.stock})
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {product.category}
+                    Categoría: <span className="font-semibold text-gray-700">{p.category || "General"}</span> | Stock: <span className="font-bold text-gray-800">{p.stock} un.</span>
                   </p>
                 </div>
-              </div>
 
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-orange-500 font-bold">
-                  ${product.price.toLocaleString()}
-                </span>
-                <span
-                  className={`text-sm font-semibold ${isOutOfStock ? "text-red-600" : isLowStock ? "text-yellow-600" : "text-gray-700"}`}
-                >
-                  {isOutOfStock
-                    ? "🚫 Agotado"
-                    : isLowStock
-                      ? `⚠️ ${product.stock} unds`
-                      : `${product.stock} unds`}
-                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="font-black text-orange-600 text-base">
+                    ${(p.price ?? 0).toLocaleString("es-CO")}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handleEdit(p)}
+                      className="text-blue-600 hover:bg-blue-50 font-black text-xs px-2.5 py-1.5 rounded-lg transition-all"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleDelete(p.id, p.title || p.name || "este producto")}
+                      className="text-red-500 hover:bg-red-50 font-black text-xs px-2.5 py-1.5 rounded-lg transition-all"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
               </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleEdit(product)}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm py-2 rounded-lg"
-                >
-                  ✏️ Editar
-                </button>
-                <button
-                  onClick={() => handleDelete(product.id)}
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm py-2 rounded-lg"
-                >
-                  🗑️ Eliminar
-                </button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        ) : (
+          <div className="text-center py-10 bg-white rounded-2xl border border-gray-100 p-6">
+            <span className="text-4xl block mb-2">📦</span>
+            <p className="text-gray-700 font-bold text-sm">No se encontraron productos</p>
+            <p className="text-gray-400 text-xs mt-0.5">Agrega un producto nuevo para empezar a gestionar tu stock.</p>
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
 export default StockPage;

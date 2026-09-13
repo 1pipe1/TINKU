@@ -1,9 +1,12 @@
 export type Product = {
-  name: string;
-  id: string;
-  title?: string;
-  category?: string;
-  price?: number;
+  id: string; // SKU o ID generado
+  title: string;
+  name?: string;
+  price: number;
+  cost: number;
   stock: number;
-  image?: string | null;
+  category: string;
+  image?: string;
+  isExpress?: boolean; // Identifica si es un ítem registrado al vuelo
+  pendingActivation?: boolean; // Identifica si pertenece al catálogo de 70 pero no tiene precios de la tienda
 };
