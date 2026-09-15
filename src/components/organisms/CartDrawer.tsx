@@ -201,7 +201,7 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-hidden flex justify-end">
+    <div className="fixed inset-0 z-100 overflow-hidden flex justify-end">
       {/* Backdrop oscuro */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
@@ -271,7 +271,7 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             {/* LISTA DE ITEMS */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3.5 space-y-3">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Detalle del Pedido</h3>
-              <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-220px overflow-y-auto pr-1">
                 {cart.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
                     {/* Imagen o placeholder */}

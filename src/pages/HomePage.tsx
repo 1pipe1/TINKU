@@ -2,20 +2,23 @@ import { useState, useEffect } from "react";
 import ProductCard from "../components/molecules/ProductCard";
 import Navbar from "../components/organisms/Navbar";
 import QuickCheckoutDrawer from "../components/organisms/QuickCheckoutDrawer";
-import { CartDrawer } from "../components/organisms/CartDrawer"; // 🔥 Nuestro nuevo y simplificado Carrito Deslizable!
+import { CartDrawer } from "../components/organisms/CartDrawer";
 import useAuthStore from "../store/useAuthStore";
 import { useNavigate } from "react-router-dom";
 import useStockStore from "../store/useStockStore";
 import useCartStore from "../store/useCartStore";
 import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
-import type { FC } from "react";
+import type { FC, FormEvent } from "react";
 
 const HomePage: FC = () => {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isQuickDrawerOpen, setIsQuickDrawerOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false); // 🔥 Control de apertura del Carrito Deslizable!
+  const [isExpressPriceOpen, setIsExpressPriceOpen] = useState(false);
+  const [expressProductName, setExpressProductName] = useState("");
+  const [expressPriceInput, setExpressPriceInput] = useState("1000");
 
   const products = useStockStore((state) => state.products);
   const fetchProducts = useStockStore((state) => state.fetchProducts);
@@ -28,7 +31,7 @@ const HomePage: FC = () => {
   const getTotalPrice = useCartStore((state) => state.getTotalPrice);
   const getTotalItems = useCartStore((state) => state.getTotalItems);
   const addToCart = useCartStore((state) => state.addToCart);
-  
+
   const totalPrice = getTotalPrice();
   const totalItems = getTotalItems();
 
@@ -60,7 +63,7 @@ const HomePage: FC = () => {
       } catch (error) {
         console.error(
           "Error deleting resumed draft after cart was cleared:",
-          error
+          error,
         );
       } finally {
         clearActiveDraftId();
@@ -71,15 +74,22 @@ const HomePage: FC = () => {
   }, [activeDraftId, cart.length, clearActiveDraftId]);
 
   // ⚡ Lógica limpia de Venta Express / Agregar Producto
+  // 👇 Updated `handleAddProduct` function
   const handleAddProduct = (searchQuery: string, expressPrice?: number) => {
     const existingProduct = products.find(
       (p) =>
-        (p.title || (p as any).nombre || (p as any).name || "")
-          .toLowerCase() === searchQuery.toLowerCase() ||
-        (p as any).sku === searchQuery
+        (
+          p.title ||
+          (p as any).nombre ||
+          (p as any).name ||
+          ""
+        ).toLowerCase() === searchQuery.toLowerCase() ||
+        (p as any).sku === searchQuery,
     );
 
-    if (existingProduct) {
+    // A price from the Express prompt must always create an Express item.
+    // Otherwise an exact catalog match would silently replace the entered price.
+    if (existingProduct && expressPrice === undefined) {
       // SÍ EXISTE: Flujo normal sin fricción
       addToCart({ ...existingProduct, quantity: 1 });
     } else {
@@ -89,7 +99,7 @@ const HomePage: FC = () => {
         sku: "EXP-" + Date.now(),
         title: searchQuery || "Producto Express",
         quantity: 1,
-        price: expressPrice || 0, // Precio digitado al vuelo
+        price: expressPrice ?? 0, // Precio digitado al vuelo
         cost: 0, // Aún no sabemos el costo
         stock: 999, // Stock infinito virtual para que no rebote
         category: "Venta Express",
@@ -97,13 +107,34 @@ const HomePage: FC = () => {
       };
 
       addToCart(expressItem as any);
+      setSearch(""); // Limpia la barra de búsqueda inmediatamente
+      setIsCartOpen(false); // Asegúrate de que `isCartOpen` permanezca en `false`
     }
+  };
+
+  const openExpressPriceDialog = () => {
+    setExpressProductName(search.trim());
+    setExpressPriceInput("");
+    setIsExpressPriceOpen(true);
+  };
+
+  const handleExpressPriceSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const price = parseFloat(expressPriceInput.trim().replace(",", "."));
+
+    if (!expressProductName || !Number.isFinite(price) || price <= 0) {
+      return;
+    }
+
+    handleAddProduct(expressProductName, price);
+    setSearch("");
+    setIsExpressPriceOpen(false);
   };
 
   // 🚪 Función de Cierre de Sesión Blindada contra Clics por Error
   const handleSafeLogout = async () => {
     const confirmLogout = window.confirm(
-      "⚠️ ¿Estás seguro de que deseas cerrar sesión de tu cuenta de TINKU?\n\nEsto bloqueará el mostrador hasta que vuelvas a ingresar tus datos de acceso."
+      "⚠️ ¿Estás seguro de que deseas cerrar sesión de tu cuenta de TINKU?\n\nEsto bloqueará el mostrador hasta que vuelvas a ingresar tus datos de acceso.",
     );
     if (confirmLogout) {
       await logout();
@@ -122,7 +153,9 @@ const HomePage: FC = () => {
       <div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center">
         <div className="text-center">
           <div className="text-4xl animate-spin mb-4">⏳</div>
-          <p className="text-gray-600 font-semibold">Cargando productos de tu tienda...</p>
+          <p className="text-gray-600 font-semibold">
+            Cargando productos de tu tienda...
+          </p>
         </div>
       </div>
     );
@@ -224,19 +257,7 @@ const HomePage: FC = () => {
             {search && (
               <div className="flex flex-col sm:flex-row gap-2 justify-center items-center max-w-xs mx-auto">
                 <button
-                  onClick={() => {
-                    const priceStr = prompt(
-                      `¿A cómo vas a vender "${search}"?`,
-                      "1000"
-                    );
-                    if (priceStr === null) return;
-                    const price = parseFloat(priceStr || "0");
-                    if (price > 0) {
-                      handleAddProduct(search, price);
-                      setSearch("");
-                      setIsCartOpen(true);
-                    }
-                  }}
+                  onClick={openExpressPriceDialog}
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   ⚡ Cobrar "{search}" Rápido
@@ -261,6 +282,57 @@ const HomePage: FC = () => {
 
       {/* 🔥 NUESTRO NUEVO CARRITO DESLIZABLE COMPACTO 🔥 */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+
+      {isExpressPriceOpen && (
+        <div
+          className="fixed inset-0 z-120 flex items-center justify-center bg-black/60 p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsExpressPriceOpen(false);
+            }
+          }}
+        >
+          <form
+            onSubmit={handleExpressPriceSubmit}
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <h2 className="text-lg font-black text-gray-800">
+              Precio de venta
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              ¿A cómo vas a vender "{expressProductName}"?
+            </p>
+            <label className="mt-5 block text-sm font-bold text-gray-700">
+              Precio
+              <input
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                value={expressPriceInput}
+                onChange={(event) => setExpressPriceInput(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-lg font-bold focus:border-orange-500 focus:outline-none"
+                aria-label="Precio de venta"
+              />
+            </label>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsExpressPriceOpen(false)}
+                className="flex-1 rounded-xl bg-gray-100 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="flex-1 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white hover:bg-orange-600"
+              >
+                Agregar al carrito
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Acceso de rescate: permanece disponible al bajar por el catálogo */}
       {!isQuickDrawerOpen && !isCartOpen && (
