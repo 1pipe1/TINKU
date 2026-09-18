@@ -2,11 +2,11 @@
   "name": "TINKU",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://1pipe1.github.io/Fullstack-Challenge-Ecommerce/",
+  "homepage": "https://github.com/1pipe1/TINKU/",
   "type": "module",
   "scripts": {
-    "dev": "vite --open --host",
-    "build": "npm run build:dev",
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
     "build:dev": "vite build --mode development",
     "build:prod": "vite build --mode production",
     "lint": "eslint .",
@@ -23,6 +23,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.3",
+    "sonner": "^2.0.8",
     "tailwindcss": "^4.3.3",
     "zustand": "^5.0.15"
   },

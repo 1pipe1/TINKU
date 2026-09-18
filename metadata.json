@@ -1,0 +1,6 @@
+{
+  "name": "TINKU",
+  "description": "Sistema de punto de venta e inventario para comercios y tiendas de barrio",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

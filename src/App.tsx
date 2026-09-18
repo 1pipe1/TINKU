@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, type ComponentType } from "react";
+import { Toaster } from "sonner";
 import useAuthStore from "./store/useAuthStore";
 import useCartStore from "./store/useCartStore"; // 🔥 1. IMPORTA EL STORE DEL CARRITO
 import AuthPage from "./pages/AuthPage";
@@ -32,6 +33,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Toaster position="top-center" richColors closeButton duration={2500} />
       <Routes>
         <Route
           path="/login"
@@ -46,10 +48,16 @@ function App() {
           }
         >
           <Route index element={<DashboardPage />} />
-          <Route path="stock" element={<StockPage/>} />
+          <Route path="stock" element={<StockPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="drafts" element={<SuspendedSalesPage />} />
+          <Route path="suspendsales" element={<SuspendedSalesPage />} />
+          <Route path="suspended" element={<SuspendedSalesPage />} />
         </Route>
+        <Route
+          path="/suspendsales"
+          element={isAuthenticated ? <Navigate to="/admin/drafts" replace /> : <Navigate to="/login" />}
+        />
         <Route
           path="/"
           element={isAuthenticated ? <HomePage /> : <Navigate to="/login" />}

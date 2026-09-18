@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
@@ -17,8 +17,23 @@ type Order = {
   total?: number;
   paymentMethod?: "cash" | "transfer";
   status?: string;
-  createdAt?: { toDate: () => Date };
+  createdAt?: any;
   items?: OrderItem[];
+};
+
+const parseOrderDate = (createdAt: any): Date | null => {
+  if (!createdAt) return null;
+  if (typeof createdAt?.toDate === "function") return createdAt.toDate();
+  if (typeof createdAt?.toMillis === "function") return new Date(createdAt.toMillis());
+  if (typeof createdAt === "object" && typeof createdAt.seconds === "number") {
+    return new Date(createdAt.seconds * 1000);
+  }
+  if (typeof createdAt === "string" || typeof createdAt === "number") {
+    const d = new Date(createdAt);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (createdAt instanceof Date) return createdAt;
+  return null;
 };
 
 const DashboardPage = () => {
@@ -73,32 +88,92 @@ const DashboardPage = () => {
   }, []);
 
   useEffect(() => {
-    const loadData = async () => {
-      const uid = user?.uid || user?.uid;
-      if (!uid) return;
-
-      await fetchProducts(uid);
-      const snapshot = await getDocs(collection(db, "usuarios", uid, "orders"));
-      const data: Order[] = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      })) as Order[];
-
-      setOrders(data);
+    const uid = user?.uid || user?.id;
+    if (!uid) {
       setLoading(false);
+      return;
+    }
+
+    try {
+      fetchProducts(uid);
+    } catch (e) {
+      console.warn("fetchProducts in dashboard:", e);
+    }
+
+    const mergeWithLocal = (firestoreOrders: Order[]) => {
+      const localOrdersStr = localStorage.getItem(`tinku_orders_${uid}`);
+      const localOrders: Order[] = localOrdersStr ? JSON.parse(localOrdersStr) : [];
+      const mergedMap = new Map<string, Order>();
+
+      // 1. Añadir órdenes de Firestore
+      firestoreOrders.forEach((o) => mergedMap.set(o.id, o));
+
+      // 2. Fusionar órdenes locales desduplicando si ya existen por ID o por coincidencia exacta de venta
+      localOrders.forEach((localOrder) => {
+        if (mergedMap.has(localOrder.id)) {
+          // Si en local se canceló la orden, garantizar que en el Dashboard se refleje como cancelada
+          const existing = mergedMap.get(localOrder.id)!;
+          if (localOrder.status === "canceled" && existing.status !== "canceled") {
+            mergedMap.set(localOrder.id, { ...existing, status: "canceled" });
+          }
+          return;
+        }
+
+        // Filtro anti-duplicado: si en Firestore ya existe la misma venta (mismo total, misma cantidad de ítems y fecha muy cercana)
+        const localTime = parseOrderDate(localOrder.createdAt)?.getTime() || 0;
+        const isDuplicate = firestoreOrders.some((fsOrder) => {
+          if (fsOrder.total !== localOrder.total) return false;
+          const fsTime = parseOrderDate(fsOrder.createdAt)?.getTime() || 0;
+          return Math.abs(fsTime - localTime) < 20000 && (fsOrder.items?.length === localOrder.items?.length);
+        });
+
+        if (!isDuplicate) {
+          mergedMap.set(localOrder.id, localOrder);
+        }
+      });
+
+      return Array.from(mergedMap.values());
     };
 
-    loadData();
-  }, [fetchProducts, user?.uid, user?.uid]);
+    // 1. Cargar de inmediato desde cache local (0 lecturas a Firestore, 0ms de espera)
+    const local = mergeWithLocal([]);
+    if (local.length > 0) {
+      setOrders(local);
+      setLoading(false);
+    }
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      if (!u) {
-        window.location.href = "/login";
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    // 2. Consulta puntual única a Firestore (getDocs en vez de onSnapshot continuo para cuidar cuota)
+    let isMounted = true;
+    getDocs(collection(db, "usuarios", uid, "orders"))
+      .then((snapshot) => {
+        if (!isMounted) return;
+        const fsOrders: Order[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as Order[];
+        setOrders(mergeWithLocal(fsOrders));
+      })
+      .catch((err) => {
+        console.warn("Firestore orders no disponibles en Dashboard:", err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    // 3. Escuchar evento de actualización inmediata de órdenes locales (ej. al vender o cancelar)
+    const handleOrdersSync = () => {
+      setOrders((prev) => mergeWithLocal(prev));
+    };
+
+    window.addEventListener("tinku_orders_updated", handleOrdersSync);
+    window.addEventListener("storage", handleOrdersSync);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("tinku_orders_updated", handleOrdersSync);
+      window.removeEventListener("storage", handleOrdersSync);
+    };
+  }, [fetchProducts, user?.uid, user?.id]);
 
   // --- PERSISTENCIA DE CONFIGURACIÓN FINANCIERA ---
   const saveFinancialConfig = (
@@ -139,7 +214,8 @@ const DashboardPage = () => {
   // --- CÁLCULO DE ÓRDENES PARA EL DÍA SELECCIONADO EN EL CALENDARIO ---
   const selectedDayOrders = activeOrders.filter((o) => {
     if (!o.createdAt) return false;
-    const date = o.createdAt.toDate();
+    const date = parseOrderDate(o.createdAt);
+    if (!date) return false;
     return getOperationalDateYYYYMMDD(date) === selectedDateString;
   });
 

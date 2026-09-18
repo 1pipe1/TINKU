@@ -6,12 +6,11 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
-  runTransaction,
 } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
 import { db } from "../firebase";
 import useCartStore from "../store/useCartStore";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 type DraftOrderItem = {
   id: string;
@@ -32,6 +31,7 @@ type DraftOrder = {
 const SuspendedSalesPage = () => {
   const [drafts, setDrafts] = useState<DraftOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [draftToCancel, setDraftToCancel] = useState<string | null>(null);
   const navigate = useNavigate();
   const setCart = useCartStore((state) => state.setCart);
   const setActiveDraftId = useCartStore((state) => state.setActiveDraftId);
@@ -72,74 +72,16 @@ const SuspendedSalesPage = () => {
     navigate("/");
   };
 
-  const handleCancelOrder = async (orderId: string) => {
-    const confirmed = window.confirm(
-      "¿Estás seguro de que deseas cancelar esta orden y devolver el stock al inventario?",
-    );
-    if (!confirmed) return;
-
-    // 🔥 BLINDAJE MULTI-TENANT: Buscamos el ID por ambos lados para que no dé undefined
-    const uid = getAuth().currentUser?.uid;
-    if (!uid) {
-      alert("Error: No se encontró una sesión activa.");
-      return;
-    }
-
+  const handleConfirmCancelDraft = async () => {
+    if (!draftToCancel) return;
     try {
       setLoading(true);
-      await runTransaction(db, async (transaction) => {
-        const orderRef = doc(db, "usuarios", uid, "orders", orderId);
-        const orderSnap = await transaction.get(orderRef);
-
-        if (!orderSnap.exists()) {
-          throw new Error("La orden que intentas cancelar no existe.");
-        }
-
-        const orderData = orderSnap.data();
-
-        if (orderData.status === "canceled") {
-          throw new Error("Esta orden ya ha sido cancelada previamente.");
-        }
-
-        const items = orderData.items || [];
-        const productUpdates: Array<{
-          ref: ReturnType<typeof doc>;
-          newStock: number;
-        }> = [];
-
-        // 1. Fase de Lectura: Consultamos el stock actual de cada producto de la orden
-        for (const item of items) {
-          const productRef = doc(db, "usuarios", uid, "productos", item.id);
-          const productSnap = await transaction.get(productRef);
-
-          if (productSnap.exists()) {
-            const productData = productSnap.data();
-            const currentStock = productData.stock ?? 0;
-
-            productUpdates.push({
-              ref: productRef,
-              newStock: currentStock + item.quantity, // 🔄 ¡Sumamos de nuevo lo vendido!
-            });
-          }
-        }
-
-        // 2. Fase de Escritura: Actualizamos los inventarios con el stock devuelto
-        productUpdates.forEach(({ ref, newStock }) => {
-          transaction.update(ref, { stock: newStock });
-        });
-
-        // 3. Fase de Escritura: Marcamos la orden como cancelada
-        transaction.update(orderRef, { status: "canceled" });
-      });
-
-      alert(
-        "✅ ¡Orden cancelada con éxito! El dinero se restó y el stock fue devuelto.",
-      );
-    } catch (error: any) {
-      console.error("Error al cancelar la orden:", error);
-      alert(
-        error.message || "No se pudo cancelar la orden. Intenta nuevamente.",
-      );
+      await deleteDoc(doc(db, "draftOrders", draftToCancel));
+      toast.success("Venta suspendida descartada con éxito.");
+      setDraftToCancel(null);
+    } catch (error) {
+      console.error("Error al cancelar la orden suspendida:", error);
+      toast.error("No se pudo cancelar la venta suspendida.");
     } finally {
       setLoading(false);
     }
@@ -222,11 +164,11 @@ const SuspendedSalesPage = () => {
                     </button>
 
                     <button
-                      onClick={() => handleCancelOrder(draft.id)}
+                      onClick={() => setDraftToCancel(draft.id)}
                       disabled={loading}
-                      className="px-2 py-1 bg-red-600 hover:bg-red-400 text-white rounded-lg font-semibold"
+                      className="px-2 py-1 bg-red-600 hover:bg-red-400 text-white rounded-lg font-semibold cursor-pointer disabled:opacity-50"
                     >
-                      {loading ? "Cancelando..." : "Cancelar orden"}
+                      Cancelar orden
                     </button>
                   </div>
 
@@ -240,6 +182,48 @@ const SuspendedSalesPage = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de confirmación para descartar venta suspendida */}
+      {draftToCancel && (
+        <div className="fixed inset-0 z-120 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-2xl mx-auto mb-4">
+              🗑️
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 text-center mb-1">
+              ¿Descartar venta suspendida?
+            </h3>
+            <p className="text-sm text-gray-600 text-center mb-6 leading-relaxed">
+              Esta venta suspendida será eliminada de la lista.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => setDraftToCancel(null)}
+                className="flex-1 min-h-11 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleConfirmCancelDraft}
+                className="flex-1 min-h-11 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm shadow-md shadow-red-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    <span>Descartando...</span>
+                  </>
+                ) : (
+                  <span>Sí, descartar</span>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { collection, serverTimestamp, doc, deleteDoc, runTransaction } from "firebase/firestore";
 import { db } from "../../firebase";
 import useCartStore from "../../store/useCartStore";
 import useAuthStore from "../../store/useAuthStore";
+import useStockStore from "../../store/useStockStore";
 import type { FC } from "react";
 
 interface CartDrawerProps {
@@ -19,6 +20,9 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
   // Para calculadora de cambio en efectivo
   const [cashReceived, setCashReceived] = useState<string>("");
   const [changeAmount, setChangeAmount] = useState<number>(0);
+
+  // Prevenir envíos dobles por toques rápidos en celulares
+  const isSubmittingRef = useRef(false);
 
   const user = useAuthStore((state) => state.user);
   const cart = useCartStore((state) => state.cart);
@@ -94,6 +98,9 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
   // Procesar la venta directamente (Estructura Multitenant Atómica)
   const handleConfirmPurchase = async () => {
+    // Si ya hay un cobro procesándose (ej. doble toque en pantalla táctil de celular), ignorar
+    if (isSubmittingRef.current || loading) return;
+
     const uid = user?.uid || user?.uid;
     if (!uid) {
       setError("Debes iniciar sesión para procesar la venta.");
@@ -111,74 +118,112 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
       return;
     }
 
+    isSubmittingRef.current = true;
     setError("");
     setLoading(true);
 
     try {
-      // EJECUTAR TRANSACCIÓN ATÓMICA MULTI-TENANT 🛡️
-      await runTransaction(db, async (transaction) => {
-        const productUpdates: Array<{ ref: any; newStock: number }> = [];
+      // 1. GENERAR UN ÚNICO ID COMPARTIDO PARA FIRESTORE Y LOCALSTORAGE
+      // Esto evita que la misma venta aparezca 2 veces al fusionar la nube con el dispositivo
+      const orderRef = doc(collection(db, "usuarios", uid, "orders"));
+      const sharedOrderId = orderRef.id;
 
-        // 1. Fase de Lectura (Obligatoria dentro de la carpeta del usuario activo)
-        for (const item of cart) {
-          // ⚡ SALTAR CONTROL DE STOCK PARA PRODUCTOS EXPRESS O VIRTUALES
-          if (
-            item.isExpress ||
-            item.id.startsWith("express-") ||
-            item.id.startsWith("venta-rapida-") ||
-            item.id.startsWith("quick-")
-          ) {
-            continue;
+      // Intentar ejecutar transacción atómica en Firestore si está conectado
+      try {
+        await runTransaction(db, async (transaction) => {
+          const productUpdates: Array<{ ref: any; newStock: number }> = [];
+
+          // 1. Fase de Lectura
+          for (const item of cart) {
+            if (
+              item.isExpress ||
+              item.id.startsWith("express-") ||
+              item.id.startsWith("venta-rapida-") ||
+              item.id.startsWith("quick-")
+            ) {
+              continue;
+            }
+
+            const productRef = doc(db, "usuarios", uid, "productos", item.id);
+            const productSnapshot = await transaction.get(productRef);
+
+            if (productSnapshot.exists()) {
+              const productData = productSnapshot.data();
+              const currentStock = productData.stock ?? 0;
+              productUpdates.push({
+                ref: productRef,
+                newStock: Math.max(0, currentStock - item.quantity),
+              });
+            }
           }
 
-          const productRef = doc(db, "usuarios", uid, "productos", item.id);
-          const productSnapshot = await transaction.get(productRef);
-
-          if (!productSnapshot.exists()) {
-            throw new Error(`El producto "${item.title || item.name}" no existe en tu inventario.`);
-          }
-
-          const productData = productSnapshot.data();
-          const currentStock = productData.stock ?? 0;
-
-          if (currentStock < item.quantity) {
-            throw new Error(`¡Sin stock de ${item.title || item.name}! Quedan ${currentStock} un.`);
-          }
-
-          productUpdates.push({
-            ref: productRef,
-            newStock: currentStock - item.quantity
+          // 2. Fase de Escritura
+          productUpdates.forEach(({ ref, newStock }) => {
+            transaction.update(ref, { stock: newStock });
           });
-        }
 
-        // 2. Fase de Escritura (Descontar existencias solo de productos reales)
-        productUpdates.forEach(({ ref, newStock }) => {
-          transaction.update(ref, { stock: newStock });
+          // 3. Crear la orden de venta bajo la subcolección del usuario con el ID único
+          transaction.set(orderRef, {
+            customerName: "Cliente",
+            paymentMethod,
+            cashPaid: paymentMethod === "cash" ? cashPaidAmount : null,
+            change: paymentMethod === "cash" && cashPaidAmount !== null ? cashPaidAmount - totalPrice : 0,
+            items: cart.map((item) => ({
+              id: item.id,
+              title: item.title || item.name || "Producto sin nombre",
+              price: item.price,
+              quantity: item.quantity,
+              image: item.image || "",
+              isExpress: !!(item.isExpress || item.id.startsWith("express-")),
+              soldBy: user?.email || "guest",
+              sellerUid: uid,
+            })),
+            total: totalPrice,
+            status: "completed",
+            createdBy: user?.uid || uid,
+            createdAt: serverTimestamp(),
+          });
         });
+      } catch (fsErr) {
+        console.warn("Firestore runTransaction no disponible o falló, procesando orden localmente:", fsErr);
+      }
 
-        // 3. Crear la orden de venta bajo la subcolección del usuario (Multi-tenant)
-        const newOrderRef = doc(collection(db, "usuarios", uid, "orders"));
-        transaction.set(newOrderRef, {
-          customerName: "Cliente",
-          paymentMethod,
-          cashPaid: paymentMethod === "cash" ? cashPaidAmount : null,
-          change: paymentMethod === "cash" && cashPaidAmount !== null ? cashPaidAmount - totalPrice : 0,
-          items: cart.map((item) => ({
-            id: item.id,
-            title: item.title || item.name || "Producto sin nombre",
-            price: item.price,
-            quantity: item.quantity,
-            image: item.image || "",
-            isExpress: !!(item.isExpress || item.id.startsWith("express-")), // 🌟 Preserva bandera Express
-            soldBy: user.email || "guest",
-            sellerUid: uid,
-          })),
-          total: totalPrice,
-          status: "completed",
-          createdBy: user.uid || uid,
-          createdAt: serverTimestamp(),
-        });
-      });
+      // Descontar inventario en el almacén local del estado
+      useStockStore.getState().deductStock(
+        cart.map((it) => ({ id: it.id, quantity: it.quantity }))
+      );
+
+      // Guardar orden local para ventas y reportes CON EL MISMO ID
+      const localOrder = {
+        id: sharedOrderId,
+        customerName: "Cliente",
+        paymentMethod,
+        cashPaid: paymentMethod === "cash" ? cashPaidAmount : null,
+        change: paymentMethod === "cash" && cashPaidAmount !== null ? cashPaidAmount - totalPrice : 0,
+        items: cart.map((item) => ({
+          id: item.id,
+          title: item.title || item.name || "Producto sin nombre",
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image || "",
+          isExpress: !!(item.isExpress || item.id.startsWith("express-")),
+          soldBy: user?.email || "guest",
+          sellerUid: uid,
+        })),
+        total: totalPrice,
+        status: "completed",
+        createdBy: user?.uid || uid,
+        createdAt: new Date().toISOString(),
+      };
+
+      const existingOrdersStr = localStorage.getItem(`tinku_orders_${uid}`);
+      const existingOrders = existingOrdersStr ? JSON.parse(existingOrdersStr) : [];
+      // Evitar guardar duplicado si ya existiera
+      const filteredExisting = existingOrders.filter((o: any) => o.id !== sharedOrderId);
+      localStorage.setItem(`tinku_orders_${uid}`, JSON.stringify([localOrder, ...filteredExisting]));
+
+      // Notificar a toda la app para actualización inmediata sin recargas
+      window.dispatchEvent(new Event("tinku_orders_updated"));
 
       // Si venimos reanudando un borrador o suspendida, borrarlo
       if (activeDraftId) {
@@ -197,6 +242,7 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
       console.error("Error processing direct order from drawer:", e);
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -431,9 +477,10 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
             </div>
 
             <button
+              type="button"
               onClick={handleConfirmPurchase}
               disabled={loading || (paymentMethod === "cash" && (!cashReceived || parseFloat(cashReceived) < totalPrice))}
-              className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 active:scale-98 text-white font-black py-4 rounded-2xl text-base transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 active:scale-98 text-white font-black py-4 rounded-2xl text-base transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer select-none touch-manipulation"
             >
               {loading ? (
                 <>

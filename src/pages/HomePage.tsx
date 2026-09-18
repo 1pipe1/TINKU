@@ -3,11 +3,12 @@ import ProductCard from "../components/molecules/ProductCard";
 import Navbar from "../components/organisms/Navbar";
 import QuickCheckoutDrawer from "../components/organisms/QuickCheckoutDrawer";
 import { CartDrawer } from "../components/organisms/CartDrawer";
+import LogoutConfirmModal from "../components/molecules/LogoutConfirmModal";
 import useAuthStore from "../store/useAuthStore";
 import { useNavigate } from "react-router-dom";
 import useStockStore from "../store/useStockStore";
 import useCartStore from "../store/useCartStore";
-import { deleteDoc, doc } from "firebase/firestore";
+import { deleteDoc, doc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import type { FC, FormEvent } from "react";
 
@@ -17,6 +18,8 @@ const HomePage: FC = () => {
   const [isQuickDrawerOpen, setIsQuickDrawerOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false); // 🔥 Control de apertura del Carrito Deslizable!
   const [isExpressPriceOpen, setIsExpressPriceOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [draftCount, setDraftCount] = useState<number>(0);
   const [expressProductName, setExpressProductName] = useState("");
   const [expressPriceInput, setExpressPriceInput] = useState("1000");
 
@@ -38,11 +41,7 @@ const HomePage: FC = () => {
   // 1. Carga limpia de productos pasándole el UID privado (Multi-tenant)
   useEffect(() => {
     const loadProducts = async () => {
-      const uid = user?.uid || user?.uid;
-      if (!uid) {
-        setLoading(false);
-        return;
-      }
+      const uid = user?.uid || user?.id || "demo-tinku-user";
       try {
         await fetchProducts(uid);
       } finally {
@@ -51,7 +50,7 @@ const HomePage: FC = () => {
     };
 
     loadProducts();
-  }, [fetchProducts, user?.uid, user?.uid]);
+  }, [fetchProducts, user?.uid, user?.id]);
 
   // 2. Limpieza de borradores/drafts cuando el carrito se vacía
   useEffect(() => {
@@ -72,6 +71,28 @@ const HomePage: FC = () => {
 
     cleanupDraft();
   }, [activeDraftId, cart.length, clearActiveDraftId]);
+
+  // 3. Escuchar ventas pausadas/suspendidas en tiempo real
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid) return;
+    try {
+      const q = query(
+        collection(db, "draftOrders"),
+        where("status", "==", "suspended"),
+      );
+      const unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          setDraftCount(snapshot.size);
+        },
+        (err) => console.warn("Error leyendo draftOrders en HomePage:", err),
+      );
+      return () => unsub();
+    } catch (e) {
+      console.warn("Error setting up draftOrders listener:", e);
+    }
+  }, [user?.uid]);
 
   // ⚡ Lógica limpia de Venta Express / Agregar Producto
   // 👇 Updated `handleAddProduct` function
@@ -131,15 +152,15 @@ const HomePage: FC = () => {
     setIsExpressPriceOpen(false);
   };
 
-  // 🚪 Función de Cierre de Sesión Blindada contra Clics por Error
-  const handleSafeLogout = async () => {
-    const confirmLogout = window.confirm(
-      "⚠️ ¿Estás seguro de que deseas cerrar sesión de tu cuenta de TINKU?\n\nEsto bloqueará el mostrador hasta que vuelvas a ingresar tus datos de acceso.",
-    );
-    if (confirmLogout) {
-      await logout();
-      navigate("/login");
-    }
+  // 🚪 Función de Cierre de Sesión Seguro (Compatible con iframes)
+  const handleSafeLogout = () => {
+    setIsLogoutModalOpen(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLogoutModalOpen(false);
+    await logout();
+    navigate("/login");
   };
 
   // 3. Filtro de búsqueda por nombre o título
@@ -200,6 +221,18 @@ const HomePage: FC = () => {
               className="text-gray-600 hover:text-orange-500 font-bold text-sm px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-all"
             >
               💰 Ventas
+            </button>
+            <button
+              onClick={() => navigate("/admin/drafts")}
+              className="relative text-gray-600 hover:text-orange-500 font-bold text-sm px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-all flex items-center gap-1.5"
+              title="Ventas pausadas / suspendidas"
+            >
+              <span>⏸️ Pausadas</span>
+              {draftCount > 0 && (
+                <span className="bg-orange-500 text-white text-xs font-black rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center shadow-xs">
+                  {draftCount}
+                </span>
+              )}
             </button>
             <button
               onClick={handleSafeLogout}
@@ -425,15 +458,29 @@ const HomePage: FC = () => {
           <span className="text-[11px] tracking-wide font-bold">Ventas</span>
         </button>
 
-        {/* Salir */}
+        {/* Ventas Suspendidas / Pausadas */}
         <button
-          onClick={handleSafeLogout}
-          className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-red-500 font-semibold transition-all"
+          onClick={() => navigate("/admin/drafts")}
+          className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all relative"
         >
-          <span className="text-xl">🚪</span>
-          <span className="text-[11px] tracking-wide font-bold">Salir</span>
+          <div className="relative">
+            <span className="text-xl">⏸️</span>
+            {draftCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 bg-orange-500 text-white text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-xs animate-pulse">
+                {draftCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] tracking-wide font-bold">Pausadas</span>
         </button>
       </div>
+
+      <LogoutConfirmModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        userEmail={user?.email}
+      />
     </div>
   );
 };

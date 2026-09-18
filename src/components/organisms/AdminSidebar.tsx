@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import useAuthStore from "../../store/useAuthStore";
+import LogoutConfirmModal from "../molecules/LogoutConfirmModal";
+import ConnectionBadge from "../atoms/ConnectionBadge";
 import {
   collection,
   query,
@@ -13,6 +15,7 @@ import {
 import { db } from "../../firebase";
 
 const AdminSidebar = () => {
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const [draftCount, setDraftCount] = useState(0);
@@ -96,7 +99,12 @@ const AdminSidebar = () => {
   }, [uid]);
 
   const handleLogout = () => {
-    logout();
+    setIsLogoutModalOpen(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLogoutModalOpen(false);
+    await logout();
     navigate("/login");
   };
 
@@ -163,7 +171,15 @@ const AdminSidebar = () => {
         ))}
       </nav>
 
-      <div className="pt-6 border-t border-gray-800">
+      <div className="pt-4 border-t border-gray-800 space-y-3">
+        <div className="px-2">
+          <ConnectionBadge
+            userEmail={user?.email}
+            role={user?.role}
+            compact={false}
+          />
+        </div>
+
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all cursor-pointer"
@@ -172,6 +188,13 @@ const AdminSidebar = () => {
           <span>Cerrar Sesión</span>
         </button>
       </div>
+
+      <LogoutConfirmModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleConfirmLogout}
+        userEmail={user?.email}
+      />
     </aside>
   );
 };

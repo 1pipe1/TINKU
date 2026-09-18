@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useState, useEffect, useRef } from "react";
+import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import useAuthStore from "../../store/useAuthStore";
 import type { FC } from "react";
@@ -25,6 +25,7 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({
   const [success, setSuccess] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
+  const isSubmittingRef = useRef(false);
   const user = useAuthStore((state) => state.user);
 
   // Bloquear scroll del body de fondo cuando el drawer esté abierto
@@ -99,7 +100,8 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({
 
   // Función Principal: Cobrar y guardar directamente en Firestore
   const handleProcessCharge = async (method: "cash" | "transfer") => {
-    if (loading) return; // 🔥 Evita doble envío
+    if (loading || isSubmittingRef.current) return; // 🔥 Evita doble envío en celulares
+    isSubmittingRef.current = true;
     setError("");
     setLoading(true);
 
@@ -130,6 +132,11 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({
         throw new Error("Digita o sume al menos un valor para cobrar.");
       }
 
+      const uid = user?.uid || "demo-tinku-user";
+      // 1. Generar UN SOLO ID compartido para Firestore y LocalStorage
+      const orderRef = doc(collection(db, "usuarios", uid, "orders"));
+      const sharedOrderId = orderRef.id;
+
       // 2. Armar la orden idéntica al esquema atómico de órdenes reales de TINKU
       const orderPayload = {
         customerName: "Cliente Express",
@@ -149,11 +156,26 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({
         createdAt: serverTimestamp(),
       };
 
-      // 3. Insertar en Firestore sin intermediarios
-      await addDoc(
-        collection(db, "usuarios", user?.uid || "", "orders"),
-        orderPayload,
-      );
+      // 3. Insertar en Firestore si está disponible con el ID único
+      try {
+        await setDoc(orderRef, orderPayload);
+      } catch (fsErr) {
+        console.warn("Firestore no disponible para cobro express, guardando local:", fsErr);
+      }
+
+      // Respaldo local garantizado con el MISMO ID
+      const localOrder = {
+        ...orderPayload,
+        id: sharedOrderId,
+        createdAt: new Date().toISOString(),
+      };
+      const existingOrdersStr = localStorage.getItem(`tinku_orders_${uid}`);
+      const existingOrders = existingOrdersStr ? JSON.parse(existingOrdersStr) : [];
+      const filteredExisting = existingOrders.filter((o: any) => o.id !== sharedOrderId);
+      localStorage.setItem(`tinku_orders_${uid}`, JSON.stringify([localOrder, ...filteredExisting]));
+
+      // Notificar al Dashboard y demás componentes para recalcular inmediatamente
+      window.dispatchEvent(new Event("tinku_orders_updated"));
 
       // Mostrar animación de éxito por un segundo
       setSuccess(true);
@@ -161,11 +183,13 @@ const QuickCheckoutDrawer: FC<QuickCheckoutDrawerProps> = ({
         handleClearAll();
         setSuccess(false);
         setLoading(false);
+        isSubmittingRef.current = false;
         onClose();
       }, 1200);
     } catch (err: any) {
       setError(err.message || "Error al procesar el cobro.");
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
