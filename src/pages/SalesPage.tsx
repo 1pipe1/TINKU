@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   collection,
   onSnapshot,
@@ -10,6 +10,8 @@ import useAuthStore from "../store/useAuthStore";
 import useStockStore from "../store/useStockStore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import SearchBar from "../components/atoms/SearchBar";
+import useKeyboardStatus from "../hooks/useKeyboardStatus";
 
 interface OrderItem {
   id: string;
@@ -65,9 +67,33 @@ const SalesPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [filterDate, setFilterDate] = useState("");
   const [viewMode, setViewMode] = useState<"all" | "today">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [confirmingCancelId, setConfirmingCancelId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isKeyboardOpen = useKeyboardStatus();
+  const isKeyboardActive =
+    isKeyboardOpen || (isSearchFocused && searchQuery.trim().length > 0);
+
+  const handleSearchFocus = () => {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
+    setIsSearchFocused(true);
+  };
+
+  const handleSearchBlur = () => {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+    }
+    blurTimeoutRef.current = setTimeout(() => {
+      setIsSearchFocused(false);
+    }, 250);
+  };
 
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
@@ -185,6 +211,17 @@ const SalesPage = () => {
 
     // Filtro por Vista "Solo Hoy"
     if (viewMode === "today" && dateString !== todayString) return false;
+
+    // Filtro por búsqueda de texto (número de orden, producto o método de pago)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchId = o.id.toLowerCase().includes(q);
+      const matchItems = o.items?.some((item) =>
+        (item.name || item.title || "").toLowerCase().includes(q)
+      );
+      const matchPayment = o.paymentMethod?.toLowerCase().includes(q);
+      if (!matchId && !matchItems && !matchPayment) return false;
+    }
 
     return true;
   });
@@ -382,64 +419,78 @@ const SalesPage = () => {
         </div>
       </div>
 
-      {/* 🔍 FILTROS INTELIGENTES */}
-      <div className="mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Toggle de vistas tipo píldora */}
-        <div className="flex bg-gray-100 p-1 rounded-xl self-start">
-          <button
-            onClick={() => {
-              setViewMode("all");
-              setCurrentPage(1);
-            }}
-            className={`min-h-12 px-4 py-2 text-sm font-black rounded-lg transition-all cursor-pointer ${
-              viewMode === "all"
-                ? "bg-white text-gray-800 shadow-sm"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
-          >
-            Todas
-          </button>
-          <button
-            onClick={() => {
-              setViewMode("today");
-              setCurrentPage(1);
-            }}
-            className={`min-h-12 px-4 py-2 text-sm font-black rounded-lg transition-all cursor-pointer ${
-              viewMode === "today"
-                ? "bg-white text-orange-500 shadow-sm"
-                : "text-gray-400 hover:text-orange-400"
-            }`}
-          >
-            Hoy ✨
-          </button>
-        </div>
+      {/* 🔍 BARRA DE BÚSQUEDA Y FILTROS INTELIGENTES */}
+      <div className="mb-4 bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3">
+        {/* Barra de búsqueda de productos / ventas */}
+        <SearchBar
+          value={searchQuery}
+          onChange={(val) => {
+            setSearchQuery(val);
+            setCurrentPage(1);
+          }}
+          onFocus={handleSearchFocus}
+          onBlur={handleSearchBlur}
+          placeholder="Buscar venta por producto, cliente o #..."
+        />
 
-        {/* Buscador de fecha sutil */}
-        <div className="flex items-center gap-2 self-start w-full md:w-auto">
-          <span className="text-base text-gray-600 font-bold hidden sm:inline">
-            Ver día:
-          </span>
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => {
-              setFilterDate(e.target.value);
-              setCurrentPage(1);
-            }}
-            aria-label="Elegir día para ver ventas"
-            className="w-full md:w-auto min-h-12 px-4 py-2.5 rounded-xl border border-gray-200 text-base font-black text-orange-600 bg-orange-50/50 focus:outline-none focus:border-orange-500 cursor-pointer"
-          />
-          {filterDate && (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1 border-t border-gray-100">
+          {/* Toggle de vistas tipo píldora */}
+          <div className="flex bg-gray-100 p-1 rounded-xl self-start">
             <button
               onClick={() => {
-                setFilterDate("");
+                setViewMode("all");
                 setCurrentPage(1);
               }}
-              className="min-h-12 text-sm font-bold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition-all cursor-pointer"
+              className={`min-h-12 px-4 py-2 text-sm font-black rounded-lg transition-all cursor-pointer ${
+                viewMode === "all"
+                  ? "bg-white text-gray-800 shadow-sm"
+                  : "text-gray-400 hover:text-gray-600"
+              }`}
             >
-              Limpiar
+              Todas
             </button>
-          )}
+            <button
+              onClick={() => {
+                setViewMode("today");
+                setCurrentPage(1);
+              }}
+              className={`min-h-12 px-4 py-2 text-sm font-black rounded-lg transition-all cursor-pointer ${
+                viewMode === "today"
+                  ? "bg-white text-orange-500 shadow-sm"
+                  : "text-gray-400 hover:text-orange-400"
+              }`}
+            >
+              Hoy ✨
+            </button>
+          </div>
+
+          {/* Buscador de fecha sutil */}
+          <div className="flex items-center gap-2 self-start w-full md:w-auto">
+            <span className="text-base text-gray-600 font-bold hidden sm:inline">
+              Ver día:
+            </span>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => {
+                setFilterDate(e.target.value);
+                setCurrentPage(1);
+              }}
+              aria-label="Elegir día para ver ventas"
+              className="w-full md:w-auto min-h-12 px-4 py-2.5 rounded-xl border border-gray-200 text-base font-black text-orange-600 bg-orange-50/50 focus:outline-none focus:border-orange-500 cursor-pointer"
+            />
+            {filterDate && (
+              <button
+                onClick={() => {
+                  setFilterDate("");
+                  setCurrentPage(1);
+                }}
+                className="min-h-12 text-sm font-bold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-xl transition-all cursor-pointer"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -595,15 +646,75 @@ const SalesPage = () => {
             );
           })
         ) : (
-          /* ESTADO VACÍO CÁLIDO */
-          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-            <span className="text-5xl mb-4 block">🏪</span>
-            <p className="text-gray-700 text-lg font-semibold">
-              No hay ventas para este filtro
+          /* ESTADO VACÍO CÁLIDO Y RESPONSIVO */
+          <div
+            className={`text-center bg-white rounded-2xl border border-slate-200 transition-all duration-200 ${
+              isKeyboardActive
+                ? "py-3 px-4 my-1 sm:my-2 shadow-xs"
+                : "py-10 md:py-14 px-6 my-4 shadow-sm"
+            }`}
+          >
+            <div
+              className={`mx-auto rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black transition-all ${
+                isKeyboardActive
+                  ? "w-10 h-10 text-xl mb-1.5"
+                  : "w-16 h-16 text-3xl mb-3"
+              }`}
+            >
+              ⚡
+            </div>
+            <p className="text-slate-800 text-base sm:text-lg md:text-xl font-extrabold tracking-tight leading-snug">
+              {searchQuery
+                ? `No se encontraron productos para "${searchQuery}"`
+                : "No se encontraron productos o ventas para este filtro"}
             </p>
-            <p className="text-gray-600 text-sm mt-1">
-              Las ventas aparecerán aquí cuando registres una nueva venta.
+            <p
+              className={`text-slate-600 font-medium ${
+                isKeyboardActive
+                  ? "text-xs sm:text-sm mt-0.5 mb-2.5"
+                  : "text-sm sm:text-base mt-1.5 mb-5 text-slate-500"
+              }`}
+            >
+              {searchQuery
+                ? "Puedes cobrarlo al vuelo con Cobro Rápido sin trancar la fila."
+                : "Las ventas aparecerán aquí cuando registres una nueva venta."}
             </p>
+
+            <div className="flex flex-col sm:flex-row gap-2.5 justify-center items-center max-w-sm mx-auto">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  navigate("/");
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  navigate("/");
+                }}
+                onClick={() => navigate("/")}
+                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-black text-sm sm:text-base py-3 px-5 rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all min-h-12 select-none"
+              >
+                <span className="text-base sm:text-lg">⚡</span>
+                <span>Cobrar Rápido</span>
+              </button>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setSearchQuery("");
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    setSearchQuery("");
+                  }}
+                  onClick={() => setSearchQuery("")}
+                  className="w-full sm:w-auto text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition-all cursor-pointer min-h-10 shrink-0 select-none"
+                >
+                  Limpiar búsqueda
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

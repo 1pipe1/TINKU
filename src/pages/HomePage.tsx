@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ProductCard from "../components/molecules/ProductCard";
 import Navbar from "../components/organisms/Navbar";
 import QuickCheckoutDrawer from "../components/organisms/QuickCheckoutDrawer";
@@ -10,6 +10,7 @@ import useStockStore from "../store/useStockStore";
 import useCartStore from "../store/useCartStore";
 import { deleteDoc, doc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
+import useKeyboardStatus from "../hooks/useKeyboardStatus";
 import type { FC, FormEvent } from "react";
 
 const HomePage: FC = () => {
@@ -22,6 +23,30 @@ const HomePage: FC = () => {
   const [draftCount, setDraftCount] = useState<number>(0);
   const [expressProductName, setExpressProductName] = useState("");
   const [expressPriceInput, setExpressPriceInput] = useState("1000");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isKeyboardOpen = useKeyboardStatus();
+  // Se considera activo cuando el teclado virtual está desplegado o cuando el tendero está enfocado escribiendo en el buscador
+  const isKeyboardActive = isKeyboardOpen || (isSearchFocused && search.trim().length > 0);
+
+  const handleSearchFocus = () => {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = null;
+    }
+    setIsSearchFocused(true);
+  };
+
+  const handleSearchBlur = () => {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+    }
+    // Pequeño retardo para evitar que el blur provoque un salto de layout instantáneo que cancele el touch/click
+    blurTimeoutRef.current = setTimeout(() => {
+      setIsSearchFocused(false);
+    }, 250);
+  };
 
   const products = useStockStore((state) => state.products);
   const fetchProducts = useStockStore((state) => state.fetchProducts);
@@ -183,15 +208,25 @@ const HomePage: FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F4F8] text-gray-900 pb-20 md:pb-8">
+    <div
+      className={`min-h-screen bg-[#F0F4F8] text-gray-900 transition-all ${
+        isKeyboardActive ? "pb-4 md:pb-8" : "pb-24 md:pb-8"
+      }`}
+    >
       {/* Navbar Superior Fijo */}
       <Navbar
         search={search}
         onSearchChange={(val) => setSearch(val)}
         onCheckout={() => setIsCartOpen(true)}
+        onSearchFocus={handleSearchFocus}
+        onSearchBlur={handleSearchBlur}
       />
 
-      <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      <div
+        className={`max-w-7xl mx-auto transition-all ${
+          isKeyboardActive ? "p-2 sm:p-4 md:p-8" : "p-4 md:p-8"
+        }`}
+      >
         {/* 💻 NAVEGACIÓN DESKTOP ELEGANTE */}
         <div className="hidden md:flex justify-between items-center mb-6 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
           <div className="flex items-center gap-2">
@@ -244,27 +279,30 @@ const HomePage: FC = () => {
         </div>
 
         {/* ⚡ SECCIÓN MULTI-TENANT: COBRO EXPRESS (CALCULADORA DE COMBATE) */}
-        <div
-          onClick={() => setIsQuickDrawerOpen(true)}
-          className="bg-linear-to-r from-orange-500 to-amber-600 p-5 rounded-2xl shadow-sm text-white mb-6 flex items-center justify-between cursor-pointer hover:from-orange-600 hover:to-amber-700 active:scale-98 transition-all border border-orange-400/20"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl animate-pulse">
-              ⚡
+        {/* Se oculta al buscar o cuando el teclado está activo para no empujar la tarjeta hacia abajo */}
+        {!search.trim() && !isKeyboardActive && (
+          <div
+            onClick={() => setIsQuickDrawerOpen(true)}
+            className="bg-linear-to-r from-orange-500 to-amber-600 p-5 rounded-2xl shadow-sm text-white mb-6 flex items-center justify-between cursor-pointer hover:from-orange-600 hover:to-amber-700 active:scale-98 transition-all border border-orange-400/20"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl animate-pulse">
+                ⚡
+              </div>
+              <div>
+                <h3 className="font-black text-base tracking-wide">
+                  Cobro Express
+                </h3>
+                <p className="text-xs text-orange-100 mt-0.5">
+                  Suma y cobra al vuelo sin digitar inventario
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-black text-base tracking-wide">
-                Cobro Express
-              </h3>
-              <p className="text-xs text-orange-100 mt-0.5">
-                Suma y cobra al vuelo sin digitar inventario
-              </p>
-            </div>
+            <button className="bg-white text-orange-600 hover:bg-orange-50 font-black px-6 py-2 rounded-xl text-xs shadow-md shadow-orange-800/10 tracking-wider transition-all shrink-0">
+              Registrar venta
+            </button>
           </div>
-          <button className="bg-white text-orange-600 hover:bg-orange-50 font-black px-6 py-2 rounded-xl text-xs shadow-md shadow-orange-800/10 tracking-wider transition-all shrink-0">
-            Registrar venta
-          </button>
-        </div>
+        )}
 
         {/* Parrilla de Productos del Catálogo */}
         {filteredProducts.length > 0 ? (
@@ -274,30 +312,69 @@ const HomePage: FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-            <span className="text-3xl mb-2 block font-black">⚡</span>
-            <p className="text-gray-700 text-lg font-bold">
+          <div
+            className={`text-center bg-white rounded-2xl border border-slate-200 transition-all duration-200 ${
+              isKeyboardActive
+                ? "py-3 px-4 my-1 sm:my-2 shadow-xs"
+                : "py-10 md:py-14 px-6 my-4 shadow-sm"
+            }`}
+          >
+            <div
+              className={`mx-auto rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black transition-all ${
+                isKeyboardActive
+                  ? "w-10 h-10 text-xl mb-1.5"
+                  : "w-16 h-16 text-3xl mb-3"
+              }`}
+            >
+              ⚡
+            </div>
+            <p className="text-slate-800 text-base sm:text-lg md:text-xl font-extrabold tracking-tight leading-snug">
               {search
                 ? `No se encontraron productos para "${search}"`
                 : "No hay productos disponibles en tu tienda todavía."}
             </p>
-            <p className="text-gray-400 text-xs mt-1 mb-4">
+            <p
+              className={`text-slate-600 font-medium ${
+                isKeyboardActive
+                  ? "text-xs sm:text-sm mt-0.5 mb-2.5"
+                  : "text-sm sm:text-base mt-1.5 mb-5 text-slate-500"
+              }`}
+            >
               {search
                 ? "Agrégalo como Venta Express para cobrarlo sin trancar la fila."
                 : "Ve al gestor de Stock para agregar productos."}
             </p>
 
             {search && (
-              <div className="flex flex-col sm:flex-row gap-2 justify-center items-center max-w-xs mx-auto">
+              <div className="flex flex-col sm:flex-row gap-2.5 justify-center items-center max-w-sm mx-auto">
                 <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    openExpressPriceDialog();
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    openExpressPriceDialog();
+                  }}
                   onClick={openExpressPriceDialog}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-black text-sm sm:text-base py-3 px-5 rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all min-h-12 select-none"
                 >
-                  ⚡ Cobrar "{search}" Rápido
+                  <span className="text-base sm:text-lg">⚡</span>
+                  <span>Cobrar "{search}" Rápido</span>
                 </button>
                 <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setSearch("");
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    setSearch("");
+                  }}
                   onClick={() => setSearch("")}
-                  className="w-full text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-100 px-3 py-2.5 rounded-xl transition-all cursor-pointer"
+                  className="w-full sm:w-auto text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition-all cursor-pointer min-h-10 shrink-0 select-none"
                 >
                   Limpiar búsqueda
                 </button>
@@ -367,8 +444,8 @@ const HomePage: FC = () => {
         </div>
       )}
 
-      {/* Acceso de rescate: permanece disponible al bajar por el catálogo */}
-      {!isQuickDrawerOpen && !isCartOpen && (
+      {/* Acceso de rescate: permanece disponible al bajar por el catálogo (se oculta con teclado activo) */}
+      {!isKeyboardActive && !isQuickDrawerOpen && !isCartOpen && (
         <button
           onClick={() => setIsQuickDrawerOpen(true)}
           aria-label="Abrir calculadora de cobro express"
@@ -379,7 +456,7 @@ const HomePage: FC = () => {
       )}
 
       {/* 🔥 BARRA FLOTANTE DE RÁFAGA ACUMULADORA (Sutil, elegante y ergonómica) 🔥 */}
-      {cart.length > 0 && !isCartOpen && !isQuickDrawerOpen && (
+      {!isKeyboardActive && cart.length > 0 && !isCartOpen && !isQuickDrawerOpen && (
         <div className="fixed bottom-20 left-4 right-4 md:bottom-6 md:right-6 md:left-auto md:w-100 z-100 animate-slide-up">
           <div
             onClick={() => setIsCartOpen(true)}
@@ -417,63 +494,65 @@ const HomePage: FC = () => {
         </div>
       )}
 
-      {/* 📱 BARRA DE NAVEGACIÓN MÓVIL PERSISTENTE */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl px-3 py-2 flex justify-around items-center z-50 md:hidden">
-        {/* Vender */}
-        <button
-          onClick={() => navigate("/")}
-          aria-label="Registrar una nueva venta"
-          className="flex-[1.25] flex flex-col items-center gap-0.5 min-h-14 justify-center rounded-xl border-2 border-orange-500 bg-orange-500 text-white shadow-md active:scale-95 transition-all"
-        >
-          <span className="text-2xl leading-none">⚡</span>
-          <span className="text-sm tracking-wide font-black">Vendiendo</span>
-        </button>
+      {/* 📱 BARRA DE NAVEGACIÓN MÓVIL PERSISTENTE (Oculta al escribir o con teclado virtual abierto para evitar carga visual) */}
+      {!isKeyboardActive && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl px-3 py-2 flex justify-around items-center z-50 md:hidden animate-fade-in">
+          {/* Vender */}
+          <button
+            onClick={() => navigate("/")}
+            aria-label="Registrar una nueva venta"
+            className="flex-[1.25] flex flex-col items-center gap-0.5 min-h-14 justify-center rounded-xl border-2 border-orange-500 bg-orange-500 text-white shadow-md active:scale-95 transition-all"
+          >
+            <span className="text-2xl leading-none">⚡</span>
+            <span className="text-sm tracking-wide font-black">Vendiendo</span>
+          </button>
 
-        {/* Dashboard */}
-        <button
-          onClick={() => navigate("/admin")}
-          className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all"
-        >
-          <span className="text-xl">📊</span>
-          <span className="text-[11px] tracking-wide font-bold">Resumen</span>
-        </button>
+          {/* Dashboard */}
+          <button
+            onClick={() => navigate("/admin")}
+            className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all"
+          >
+            <span className="text-xl">📊</span>
+            <span className="text-[11px] tracking-wide font-bold">Resumen</span>
+          </button>
 
-        {/* Stock */}
-        <button
-          onClick={() => navigate("/admin/stock")}
-          className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all"
-        >
-          <span className="text-xl">📦</span>
-          <span className="text-[11px] tracking-wide font-bold">
-            Inventario
-          </span>
-        </button>
+          {/* Stock */}
+          <button
+            onClick={() => navigate("/admin/stock")}
+            className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all"
+          >
+            <span className="text-xl">📦</span>
+            <span className="text-[11px] tracking-wide font-bold">
+              Inventario
+            </span>
+          </button>
 
-        {/* Ventas */}
-        <button
-          onClick={() => navigate("/admin/sales")}
-          className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all"
-        >
-          <span className="text-xl">💰</span>
-          <span className="text-[11px] tracking-wide font-bold">Ventas</span>
-        </button>
+          {/* Ventas */}
+          <button
+            onClick={() => navigate("/admin/sales")}
+            className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all"
+          >
+            <span className="text-xl">💰</span>
+            <span className="text-[11px] tracking-wide font-bold">Ventas</span>
+          </button>
 
-        {/* Ventas Suspendidas / Pausadas */}
-        <button
-          onClick={() => navigate("/admin/drafts")}
-          className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all relative"
-        >
-          <div className="relative">
-            <span className="text-xl">⏸️</span>
-            {draftCount > 0 && (
-              <span className="absolute -top-1.5 -right-2 bg-orange-500 text-white text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-xs animate-pulse">
-                {draftCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] tracking-wide font-bold">Pausadas</span>
-        </button>
-      </div>
+          {/* Ventas Suspendidas / Pausadas */}
+          <button
+            onClick={() => navigate("/admin/drafts")}
+            className="flex-1 flex flex-col items-center gap-1 min-h-14 justify-center text-gray-400 hover:text-orange-500 font-semibold transition-all relative"
+          >
+            <div className="relative">
+              <span className="text-xl">⏸️</span>
+              {draftCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-orange-500 text-white text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-xs animate-pulse">
+                  {draftCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] tracking-wide font-bold">Pausadas</span>
+          </button>
+        </div>
+      )}
 
       <LogoutConfirmModal
         isOpen={isLogoutModalOpen}

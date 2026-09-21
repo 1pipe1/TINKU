@@ -432,7 +432,7 @@ const DashboardPage = () => {
                   </span>
                 </div>
                 <div className="flex gap-1.5 mt-1.5">
-                  {[310000, 465000, 620000, 775000, 930000].map(
+                  {[465000, 620000, 775000, 930000].map(
                     (val) => (
                       <button
                         key={`fc-${val}`}

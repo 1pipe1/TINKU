@@ -7,10 +7,12 @@ import AdminSidebar from "../components/organisms/AdminSidebar";
 import LogoutConfirmModal from "../components/molecules/LogoutConfirmModal";
 import useAuthStore from "../store/useAuthStore";
 import ConnectionBadge, { useNetworkStatus } from "../components/atoms/ConnectionBadge";
+import useKeyboardStatus from "../hooks/useKeyboardStatus";
 
 const AdminLayout = () => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [draftCount, setDraftCount] = useState<number>(0);
+  const isKeyboardOpen = useKeyboardStatus();
   const isAuthenticated = useAuthStore((state) =>
     Boolean((state as { isAuthenticated?: boolean }).isAuthenticated),
   );
@@ -60,7 +62,7 @@ const AdminLayout = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-[#F0F4F8] pb-20 md:pb-0">
+    <div className={`flex flex-col md:flex-row h-screen bg-[#F0F4F8] ${isKeyboardOpen ? "pb-0" : "pb-20"} md:pb-0 transition-all`}>
       {/* 📱 Encabezado superior en Móvil (Muestra Logo TINKU + Usuario + Estado En línea / Desconectado + Botón Salir) */}
       <header className="md:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-2xs sticky top-0 z-40">
         <button
@@ -107,83 +109,85 @@ const AdminLayout = () => {
         <Outlet />
       </div>
 
-      {/* 📱 BARRA DE NAVEGACIÓN MÓVIL PERSISTENTE EN ADMIN (LA MÁS CHIMBA - FIEL A TU BOCETO DE CUADERNO) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl px-4 py-2 flex justify-around items-center z-100 md:hidden">
-        {/* Vender */}
-        <button
-          onClick={() => navigate("/")}
-          aria-label="Registrar una nueva venta"
-          className={`flex-[1.25] flex flex-col items-center gap-0.5 min-h-14 justify-center rounded-xl border-2 shadow-md transition-all active:scale-95 ${
-            isActive("/")
-              ? "text-white font-black bg-orange-500 border-orange-400"
-              : "text-orange-600 font-black bg-orange-50 border-orange-200 hover:bg-orange-100"
-          }`}
-        >
-          <span className="text-2xl leading-none">⚡</span>
-          <span className="text-sm tracking-wide font-black">¡A vender!</span>
-        </button>
+      {/* 📱 BARRA DE NAVEGACIÓN MÓVIL PERSISTENTE EN ADMIN (Oculta con teclado virtual activo para evitar carga visual) */}
+      {!isKeyboardOpen && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl px-4 py-2 flex justify-around items-center z-100 md:hidden animate-fade-in">
+          {/* Vender */}
+          <button
+            onClick={() => navigate("/")}
+            aria-label="Registrar una nueva venta"
+            className={`flex-[1.25] flex flex-col items-center gap-0.5 min-h-14 justify-center rounded-xl border-2 shadow-md transition-all active:scale-95 ${
+              isActive("/")
+                ? "text-white font-black bg-orange-500 border-orange-400"
+                : "text-orange-600 font-black bg-orange-50 border-orange-200 hover:bg-orange-100"
+            }`}
+          >
+            <span className="text-2xl leading-none">⚡</span>
+            <span className="text-sm tracking-wide font-black">¡A vender!</span>
+          </button>
 
-        {/* Dashboard */}
-        <button
-          onClick={() => navigate("/admin")}
-          className={`flex-1 flex flex-col items-center gap-1 min-h-14 justify-center transition-all ${
-            isActive("/admin")
-              ? "text-orange-500 font-black"
-              : "text-gray-400 hover:text-orange-500 font-semibold"
-          }`}
-        >
-          <span className="text-xl">📊</span>
-          <span className="text-[11px] tracking-wide font-bold">
-            Resumen
-          </span>
-        </button>
+          {/* Dashboard */}
+          <button
+            onClick={() => navigate("/admin")}
+            className={`flex-1 flex flex-col items-center gap-1 min-h-14 justify-center transition-all ${
+              isActive("/admin")
+                ? "text-orange-500 font-black"
+                : "text-gray-400 hover:text-orange-500 font-semibold"
+            }`}
+          >
+            <span className="text-xl">📊</span>
+            <span className="text-[11px] tracking-wide font-bold">
+              Resumen
+            </span>
+          </button>
 
-        {/* Stock */}
-        <button
-          onClick={() => navigate("/admin/stock")}
-          className={`flex-1 flex flex-col items-center gap-1 min-h-14 justify-center transition-all ${
-            isActive("/admin/stock")
-              ? "text-orange-500 font-black"
-              : "text-gray-400 hover:text-orange-500 font-semibold"
-          }`}
-        >
-          <span className="text-xl">📦</span>
-          <span className="text-[11px] tracking-wide font-bold">Inventario</span>
-        </button>
+          {/* Stock */}
+          <button
+            onClick={() => navigate("/admin/stock")}
+            className={`flex-1 flex flex-col items-center gap-1 min-h-14 justify-center transition-all ${
+              isActive("/admin/stock")
+                ? "text-orange-500 font-black"
+                : "text-gray-400 hover:text-orange-500 font-semibold"
+            }`}
+          >
+            <span className="text-xl">📦</span>
+            <span className="text-[11px] tracking-wide font-bold">Inventario</span>
+          </button>
 
-        {/* Ventas */}
-        <button
-          onClick={() => navigate("/admin/sales")}
-          className={`flex-1 flex flex-col items-center gap-1 min-h-14 justify-center transition-all ${
-            isActive("/admin/sales")
-              ? "text-orange-500 font-black"
-              : "text-gray-400 hover:text-orange-500 font-semibold"
-          }`}
-        >
-          <span className="text-xl">💰</span>
-          <span className="text-[11px] tracking-wide font-bold">Ventas</span>
-        </button>
+          {/* Ventas */}
+          <button
+            onClick={() => navigate("/admin/sales")}
+            className={`flex-1 flex flex-col items-center gap-1 min-h-14 justify-center transition-all ${
+              isActive("/admin/sales")
+                ? "text-orange-500 font-black"
+                : "text-gray-400 hover:text-orange-500 font-semibold"
+            }`}
+          >
+            <span className="text-xl">💰</span>
+            <span className="text-[11px] tracking-wide font-bold">Ventas</span>
+          </button>
 
-        {/* Ventas Suspendidas / Pausadas */}
-        <button
-          onClick={() => navigate("/admin/drafts")}
-          className={`flex-1 flex flex-col items-center gap-1 min-h-14 justify-center transition-all relative ${
-            isActive("/admin/drafts") || isActive("/admin/suspendsales") || isActive("/admin/suspended")
-              ? "text-orange-500 font-black"
-              : "text-gray-400 hover:text-orange-500 font-semibold"
-          }`}
-        >
-          <div className="relative">
-            <span className="text-xl">⏸️</span>
-            {draftCount > 0 && (
-              <span className="absolute -top-1.5 -right-2 bg-orange-500 text-white text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-xs animate-pulse">
-                {draftCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] tracking-wide font-bold">Pausadas</span>
-        </button>
-      </div>
+          {/* Ventas Suspendidas / Pausadas */}
+          <button
+            onClick={() => navigate("/admin/drafts")}
+            className={`flex-1 flex flex-col items-center gap-1 min-h-14 justify-center transition-all relative ${
+              isActive("/admin/drafts") || isActive("/admin/suspendsales") || isActive("/admin/suspended")
+                ? "text-orange-500 font-black"
+                : "text-gray-400 hover:text-orange-500 font-semibold"
+            }`}
+          >
+            <div className="relative">
+              <span className="text-xl">⏸️</span>
+              {draftCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-orange-500 text-white text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center shadow-xs animate-pulse">
+                  {draftCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] tracking-wide font-bold">Pausadas</span>
+          </button>
+        </div>
+      )}
 
       <LogoutConfirmModal
         isOpen={isLogoutModalOpen}

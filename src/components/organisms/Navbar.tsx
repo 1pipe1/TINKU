@@ -10,9 +10,16 @@ type NavbarProps = {
   search: string;
   onSearchChange: (value: string) => void;
   onCheckout?: () => void;
+  onSearchFocus?: () => void;
+  onSearchBlur?: () => void;
 };
 
-const Navbar = ({ search, onSearchChange }: NavbarProps) => {
+const Navbar = ({
+  search,
+  onSearchChange,
+  onSearchFocus,
+  onSearchBlur,
+}: NavbarProps) => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
@@ -44,7 +51,12 @@ const Navbar = ({ search, onSearchChange }: NavbarProps) => {
 
           {/* Buscador en Pantallas Medianas / Grandes */}
           <div className="hidden sm:flex flex-1 justify-center items-center max-w-md mx-2">
-            <SearchBar value={search} onChange={onSearchChange} />
+            <SearchBar
+              value={search}
+              onChange={onSearchChange}
+              onFocus={onSearchFocus}
+              onBlur={onSearchBlur}
+            />
           </div>
 
           {/* Indicador de Usuario y Estado de Conexión + Botón Salir */}
@@ -83,7 +95,12 @@ const Navbar = ({ search, onSearchChange }: NavbarProps) => {
 
         {/* Barra de búsqueda en Móvil (Fila dedicada para comodidad táctil) */}
         <div className="sm:hidden w-full pt-1">
-          <SearchBar value={search} onChange={onSearchChange} />
+          <SearchBar
+            value={search}
+            onChange={onSearchChange}
+            onFocus={onSearchFocus}
+            onBlur={onSearchBlur}
+          />
         </div>
 
         {/* ⚠️ Banner de advertencia offline si el celular pierde conexión */}
