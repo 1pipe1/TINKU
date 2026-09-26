@@ -1,38 +1,54 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   initializeFirestore,
+  getFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
   setLogLevel,
+  type Firestore,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-console.log("🔥 Proyecto Firebase activo:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
-
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey:
+    import.meta.env.VITE_FIREBASE_API_KEY ||
+    "AIzaSyDummyKeyForDevelopment123456789",
+  authDomain:
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "tinku-app.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "tinku-app",
+  storageBucket:
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "tinku-app.appspot.com",
+  messagingSenderId:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
+  appId:
+    import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789012:web:abcdef1234567890",
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase safely
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // ⚡ Suprimir avisos ruidosos de reintento/offline en consola
-setLogLevel("error");
+try {
+  setLogLevel("error");
+} catch {
+  // Ignore
+}
 
-// ⚡ Habilitar caché persistente local (IndexedDB) y auto-detección de long polling:
-// Evita consultar a los servidores de Firebase por documentos que ya están en el teléfono
-// y permite conexión fluida incluso si los WebSockets son bloqueados por proxies o iframes.
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
-});
+// ⚡ Habilitar caché persistente con fallback
+let dbInstance: Firestore;
+try {
+  dbInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
+} catch {
+  dbInstance = getFirestore(app);
+}
+
+export const db = dbInstance;
 export const auth = getAuth(app);
+
 
 
 
