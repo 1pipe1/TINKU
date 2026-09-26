@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  onAuthStateChanged,
 } from "firebase/auth";
 import {
   sendPhoneSmsVerification,
@@ -89,6 +90,7 @@ const generateUserUid = (email: string): string => {
 type AuthState = {
   user: AuthUser | null;
   isAuthenticated: boolean;
+  isAuthReady: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (
     email: string,
@@ -111,6 +113,7 @@ const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
+      isAuthReady: false,
 
       login: async (email: string, password: string) => {
         const cleanEmail = email.trim();
@@ -387,6 +390,35 @@ const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Sincronización continua de la sesión de Firebase Auth en segundo plano
+if (typeof window !== "undefined") {
+  try {
+    onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const current = useAuthStore.getState();
+        const phone = firebaseUser.phoneNumber || "";
+        const email = firebaseUser.email || phone || "Usuario";
+        useAuthStore.setState({
+          user: {
+            uid: firebaseUser.uid,
+            id: firebaseUser.uid,
+            email,
+            phoneNumber: phone || null,
+            role: current.user?.role || "admin",
+          },
+          isAuthenticated: true,
+          isAuthReady: true,
+        });
+      } else {
+        useAuthStore.setState({ isAuthReady: true });
+      }
+    });
+  } catch (err) {
+    console.warn("No se pudo iniciar onAuthStateChanged:", err);
+    useAuthStore.setState({ isAuthReady: true });
+  }
+}
 
 export default useAuthStore;
 

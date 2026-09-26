@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { collection, getDocs, doc, writeBatch } from "firebase/firestore";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 import type { Product } from "../types/product";
 import { DEFAULT_PRODUCTS } from "../data/defaultProducts";
 
@@ -29,6 +29,14 @@ const useStockStore = create<StockState>()(
         // Cache first: si ya existen productos en Zustand, evitamos consultar Firestore salvo recarga forzada
         const cached = get().products;
         if (!force && cached && cached.length > 0) {
+          return;
+        }
+
+        // Si Firebase Auth no tiene la sesión activa con este UID, usar caché o predeterminados
+        if (!auth.currentUser || auth.currentUser.uid !== uid) {
+          if (!cached || cached.length === 0) {
+            set({ products: DEFAULT_PRODUCTS });
+          }
           return;
         }
 
