@@ -7,13 +7,15 @@ import {
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
+console.log("🔥 Proyecto Firebase activo:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyForDevelopment00000000",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "nexoio-dev.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "nexoio-dev",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "nexoio-dev.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1234567890",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1234567890:web:mockappid000",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase
