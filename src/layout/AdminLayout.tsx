@@ -1,17 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Outlet, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { LogOut } from "lucide-react";
-import { db } from "../firebase";
 import AdminSidebar from "../components/organisms/AdminSidebar";
 import LogoutConfirmModal from "../components/molecules/LogoutConfirmModal";
 import useAuthStore from "../store/useAuthStore";
+import { useDraftStore } from "../store/useDraftStore";
 import ConnectionBadge, { useNetworkStatus } from "../components/atoms/ConnectionBadge";
 import useKeyboardStatus from "../hooks/useKeyboardStatus";
 
 const AdminLayout = () => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [draftCount, setDraftCount] = useState<number>(0);
+  const draftCount = useDraftStore((state) => state.draftCount);
   const isKeyboardOpen = useKeyboardStatus();
   const isAuthenticated = useAuthStore((state) =>
     Boolean((state as { isAuthenticated?: boolean }).isAuthenticated),
@@ -21,32 +20,11 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isOnline = useNetworkStatus();
-  const uid = user?.uid;
-
-  // Escuchar en tiempo real la cantidad de ventas pausadas/suspendidas
-  useEffect(() => {
-    if (!uid) return;
-    try {
-      const q = query(
-        collection(db, "draftOrders"),
-        where("status", "==", "suspended"),
-      );
-      const unsub = onSnapshot(
-        q,
-        (snapshot) => {
-          setDraftCount(snapshot.size);
-        },
-        (err) => console.warn("Error leyendo ventas pausadas en AdminLayout:", err)
-      );
-      return () => unsub();
-    } catch (e) {
-      console.warn("Error setting up draft listener:", e);
-    }
-  }, [uid]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
 
   // 🚪 Función de Cierre de Sesión Seguro (Compatible con iframes)
   const handleSafeLogout = () => {

@@ -96,14 +96,26 @@ const StockPage = () => {
 
     const loadPendingExpress = async () => {
       try {
-        const ordersRef = collection(db, "usuarios", uid, "orders");
-        const q = query(ordersRef, orderBy("createdAt", "desc"), limit(30));
-        const snap = await getDocs(q);
+        const localOrdersStr = localStorage.getItem(`tinku_orders_${uid}`);
+        let ordersData: any[] = [];
+        if (localOrdersStr) {
+          try {
+            ordersData = JSON.parse(localOrdersStr).slice(0, 20);
+          } catch {
+            ordersData = [];
+          }
+        }
+
+        if (ordersData.length === 0) {
+          const ordersRef = collection(db, "usuarios", uid, "orders");
+          const q = query(ordersRef, orderBy("createdAt", "desc"), limit(15));
+          const snap = await getDocs(q);
+          ordersData = snap.docs.map((d) => d.data());
+        }
 
         const expressMap = new Map<string, number>();
 
-        snap.docs.forEach((docSnap) => {
-          const data = docSnap.data();
+        ordersData.forEach((data) => {
           const items = data.items || [];
           items.forEach((it: any) => {
             const isExpress =

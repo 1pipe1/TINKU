@@ -9,8 +9,10 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import useCartStore from "../store/useCartStore";
+import useAuthStore from "../store/useAuthStore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+
 
 type DraftOrderItem = {
   id: string;
@@ -35,10 +37,18 @@ const SuspendedSalesPage = () => {
   const navigate = useNavigate();
   const setCart = useCartStore((state) => state.setCart);
   const setActiveDraftId = useCartStore((state) => state.setActiveDraftId);
+  const user = useAuthStore((state) => state.user);
+  const uid = user?.uid;
 
   useEffect(() => {
+    if (!uid) {
+      setDrafts([]);
+      return;
+    }
+
     const q = query(
       collection(db, "draftOrders"),
+      where("createdByUid", "==", uid),
       where("status", "==", "suspended"),
     );
     const unsub = onSnapshot(
@@ -54,7 +64,8 @@ const SuspendedSalesPage = () => {
     );
 
     return () => unsub();
-  }, []);
+  }, [uid]);
+
 
   const handleResume = (draft: DraftOrder) => {
     if (!draft?.items) return;

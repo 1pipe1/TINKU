@@ -4,6 +4,9 @@ import {
   onSnapshot,
   doc,
   runTransaction,
+  query,
+  orderBy,
+  limit,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import useAuthStore from "../store/useAuthStore";
@@ -108,7 +111,11 @@ const SalesPage = () => {
     }
 
     setLoading(true);
-    const ordersRef = collection(db, "usuarios", uid, "orders");
+    const ordersQuery = query(
+      collection(db, "usuarios", uid, "orders"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
 
     const getMergedOrders = (firestoreOrders: Order[]) => {
       const localOrdersStr = localStorage.getItem(`tinku_orders_${uid}`);
@@ -150,7 +157,7 @@ const SalesPage = () => {
     };
 
     const unsubscribe = onSnapshot(
-      ordersRef,
+      ordersQuery,
       (snapshot) => {
         const rawOrders = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,

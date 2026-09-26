@@ -2,6 +2,25 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Cada tendero solo puede leer y escribir sus propios datos (productos, ordenes, etc.)
+    match /usuarios/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Ventas pausadas / borradores compartidos solo por quien las creó
+    match /draftOrders/{draftId} {
+      allow create: if request.auth != null && request.resource.data.createdByUid == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.createdByUid == request.auth.uid;
+    }
+
+    // Catálogo plantilla global (solo lectura para usuarios autenticados)
+    match /productos/{productId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Bloqueo total por defecto para cualquier otra ruta
     match /{document=**} {
       allow read, write: if false;
     }

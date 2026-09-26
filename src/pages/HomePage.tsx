@@ -8,7 +8,8 @@ import useAuthStore from "../store/useAuthStore";
 import { useNavigate } from "react-router-dom";
 import useStockStore from "../store/useStockStore";
 import useCartStore from "../store/useCartStore";
-import { deleteDoc, doc, collection, query, where, onSnapshot } from "firebase/firestore";
+import { useDraftStore } from "../store/useDraftStore";
+import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import useKeyboardStatus from "../hooks/useKeyboardStatus";
 import type { FC, FormEvent } from "react";
@@ -20,7 +21,7 @@ const HomePage: FC = () => {
   const [isCartOpen, setIsCartOpen] = useState(false); // 🔥 Control de apertura del Carrito Deslizable!
   const [isExpressPriceOpen, setIsExpressPriceOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [draftCount, setDraftCount] = useState<number>(0);
+  const draftCount = useDraftStore((state) => state.draftCount);
   const [expressProductName, setExpressProductName] = useState("");
   const [expressPriceInput, setExpressPriceInput] = useState("1000");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -96,28 +97,6 @@ const HomePage: FC = () => {
 
     cleanupDraft();
   }, [activeDraftId, cart.length, clearActiveDraftId]);
-
-  // 3. Escuchar ventas pausadas/suspendidas en tiempo real
-  useEffect(() => {
-    const uid = user?.uid;
-    if (!uid) return;
-    try {
-      const q = query(
-        collection(db, "draftOrders"),
-        where("status", "==", "suspended"),
-      );
-      const unsub = onSnapshot(
-        q,
-        (snapshot) => {
-          setDraftCount(snapshot.size);
-        },
-        (err) => console.warn("Error leyendo draftOrders en HomePage:", err),
-      );
-      return () => unsub();
-    } catch (e) {
-      console.warn("Error setting up draftOrders listener:", e);
-    }
-  }, [user?.uid]);
 
   // ⚡ Lógica limpia de Venta Express / Agregar Producto
   // 👇 Updated `handleAddProduct` function

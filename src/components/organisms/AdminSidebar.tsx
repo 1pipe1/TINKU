@@ -1,16 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import useAuthStore from "../../store/useAuthStore";
+import useStockStore from "../../store/useStockStore";
+import { useDraftStore } from "../../store/useDraftStore";
 import LogoutConfirmModal from "../molecules/LogoutConfirmModal";
 import ConnectionBadge from "../atoms/ConnectionBadge";
 import {
   collection,
   query,
-  where,
-  onSnapshot,
-  getDocs,
   limit,
   orderBy,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "../../firebase";
 
@@ -18,85 +18,81 @@ const AdminSidebar = () => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
-  const [draftCount, setDraftCount] = useState(0);
+  const draftCount = useDraftStore((state) => state.draftCount);
   const [pendingStockCount, setPendingStockCount] = useState(0);
   const user = useAuthStore((state) => state.user);
-  const uid = user?.uid || user?.uid;
+  const uid = user?.uid;
+  const products = useStockStore((state) => state.products);
 
-  // 1. Contador de Ventas Suspendidas
-  useEffect(() => {
+  // ⚡ Contador de Productos Express Pendientes de Registrar en Stock
+  // Se calcula usando los productos que ya están en memoria (0 lecturas a productos)
+  // y órdenes locales o una única consulta inicial limitada (máx 15 órdenes).
+  const checkPendingExpress = useCallback(async () => {
     if (!uid) return;
     try {
-      const q = query(
-        collection(db, "draftOrders"),
-        where("createdByUid", "==", uid),
-        where("status", "==", "suspended"),
+      const officialTitles = new Set(
+        products.map((p) =>
+          (p.title || (p as any).nombre || (p as any).name || "").toLowerCase().trim()
+        )
       );
-      const unsub = onSnapshot(q, (snapshot) => {
-        setDraftCount(snapshot.size);
-      });
-      return () => unsub();
-    } catch (e) {
-      console.error("Error subscribing to draftOrders:", e);
-    }
-  }, [uid]);
 
-  // 2. Contador de Productos Express Pendientes de Registrar en Stock ⚡ (Notificación)
-  useEffect(() => {
-    if (!uid) return;
-    const checkPendingExpress = async () => {
-      try {
-        // Obtener productos oficiales
-        const prodSnap = await getDocs(
-          collection(db, "usuarios", uid, "productos"),
-        );
-        const officialTitles = new Set(
-          prodSnap.docs.map((d) =>
-            (d.data().nombre || d.data().title || "").toLowerCase().trim(),
-          ),
-        );
+      // 1. Primero intentar leer del almacenamiento local (0 lecturas de red)
+      const localOrdersStr = localStorage.getItem(`tinku_orders_${uid}`);
+      let ordersToInspect: any[] = [];
+      if (localOrdersStr) {
+        try {
+          ordersToInspect = JSON.parse(localOrdersStr).slice(0, 20);
+        } catch {
+          ordersToInspect = [];
+        }
+      }
 
-        // Obtener órdenes recientes
+      // 2. Si no hay en local, consultar un máximo de 15 órdenes recientes de Firestore
+      if (ordersToInspect.length === 0) {
         const ordersQ = query(
           collection(db, "usuarios", uid, "orders"),
           orderBy("createdAt", "desc"),
-          limit(25),
+          limit(15)
         );
         const ordersSnap = await getDocs(ordersQ);
-
-        const pendingSet = new Set<string>();
-        ordersSnap.docs.forEach((docSnap) => {
-          const items = docSnap.data().items || [];
-          items.forEach((it: any) => {
-            const isExpress =
-              it.isExpress || String(it.id || "").startsWith("express-");
-            const itemTitle = (it.title || it.name || "").trim();
-            if (isExpress && itemTitle) {
-              if (!officialTitles.has(itemTitle.toLowerCase())) {
-                pendingSet.add(itemTitle.toLowerCase());
-              }
-            }
-          });
-        });
-
-        setPendingStockCount(pendingSet.size);
-      } catch (err) {
-        console.error("Error checking pending express items for badge:", err);
+        ordersToInspect = ordersSnap.docs.map((d) => d.data());
       }
-    };
 
+      const pendingSet = new Set<string>();
+      ordersToInspect.forEach((orderData) => {
+        const items = orderData.items || [];
+        items.forEach((it: any) => {
+          const isExpress =
+            it.isExpress || String(it.id || "").startsWith("express-");
+          const itemTitle = (it.title || it.name || "").trim();
+          if (isExpress && itemTitle) {
+            if (!officialTitles.has(itemTitle.toLowerCase())) {
+              pendingSet.add(itemTitle.toLowerCase());
+            }
+          }
+        });
+      });
+
+      setPendingStockCount(pendingSet.size);
+    } catch (err) {
+      console.warn("Verificación de productos express en sidebar:", err);
+    }
+  }, [uid, products]);
+
+  useEffect(() => {
     checkPendingExpress();
 
-    // Re-verificar solo al enfocar la ventana o cada 5 minutos para minimizar lecturas en Firestore
-    const handleFocus = () => checkPendingExpress();
-    window.addEventListener("focus", handleFocus);
-    const interval = setInterval(checkPendingExpress, 300000); // 5 minutos
+    // Actualizar cuando se registre una nueva venta localmente (0 lecturas de Firestore)
+    const handleOrderUpdate = () => checkPendingExpress();
+    window.addEventListener("tinku_orders_updated", handleOrderUpdate);
+    window.addEventListener("storage", handleOrderUpdate);
 
     return () => {
-      window.removeEventListener("focus", handleFocus);
-      clearInterval(interval);
+      window.removeEventListener("tinku_orders_updated", handleOrderUpdate);
+      window.removeEventListener("storage", handleOrderUpdate);
     };
-  }, [uid]);
+  }, [checkPendingExpress]);
+
 
   const handleLogout = () => {
     setIsLogoutModalOpen(true);

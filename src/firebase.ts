@@ -1,6 +1,11 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  setLogLevel,
+} from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyForDevelopment00000000",
@@ -12,17 +17,20 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-
 const app = initializeApp(firebaseConfig);
 
-export const db = getFirestore(app);
+// ⚡ Suprimir avisos ruidosos de reintento/offline en consola
+setLogLevel("error");
+
+// ⚡ Habilitar caché persistente local (IndexedDB) y auto-detección de long polling:
+// Evita consultar a los servidores de Firebase por documentos que ya están en el teléfono
+// y permite conexión fluida incluso si los WebSockets son bloqueados por proxies o iframes.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});
 export const auth = getAuth(app);
 
-// 🔌 Comenta esto para volver a la base de datos real de internet:
-/*
-if (import.meta.env.DEV) {
-  console.log("🔌 Conectando a los Emuladores...");
-  connectFirestoreEmulator(db, "localhost", 8080);
-  connectAuthEmulator(auth, "http://localhost:9099");
-}
-*/
+
+

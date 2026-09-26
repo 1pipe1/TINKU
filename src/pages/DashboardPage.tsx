@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
 import useStockStore from "../store/useStockStore";
@@ -142,9 +142,14 @@ const DashboardPage = () => {
       setLoading(false);
     }
 
-    // 2. Consulta puntual única a Firestore (getDocs en vez de onSnapshot continuo para cuidar cuota)
+    // 2. Consulta puntual única a Firestore (con limit(100) para cuidar cuota y tiempo de respuesta)
     let isMounted = true;
-    getDocs(collection(db, "usuarios", uid, "orders"))
+    const ordersQ = query(
+      collection(db, "usuarios", uid, "orders"),
+      orderBy("createdAt", "desc"),
+      limit(100)
+    );
+    getDocs(ordersQ)
       .then((snapshot) => {
         if (!isMounted) return;
         const fsOrders: Order[] = snapshot.docs.map((docSnap) => ({
