@@ -28,6 +28,7 @@ export const useNetworkStatus = () => {
 
 interface ConnectionBadgeProps {
   userEmail?: string | null;
+  phoneNumber?: string | null;
   role?: string | null;
   compact?: boolean;
 }
@@ -38,10 +39,17 @@ interface ConnectionBadgeProps {
  */
 export const ConnectionBadge = ({
   userEmail,
+  phoneNumber,
   role,
   compact = false,
 }: ConnectionBadgeProps) => {
   const isOnline = useNetworkStatus();
+  const displayIdentifier = phoneNumber || userEmail;
+  const formattedUser = displayIdentifier
+    ? displayIdentifier.includes("@")
+      ? displayIdentifier.split("@")[0]
+      : displayIdentifier
+    : null;
 
   return (
     <div
@@ -71,14 +79,14 @@ export const ConnectionBadge = ({
         )}
       </span>
 
-      {/* Nombre o Correo del usuario */}
-      {userEmail && (
+      {/* Nombre, Celular o Correo del usuario */}
+      {formattedUser && (
         <span
           className={`font-semibold truncate ${
             compact ? "max-w-[85px] text-[11px]" : "max-w-[130px]"
           }`}
         >
-          {userEmail.split("@")[0]}
+          {formattedUser}
         </span>
       )}
 

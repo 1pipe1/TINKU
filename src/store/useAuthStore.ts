@@ -6,12 +6,19 @@ import {
   createUserWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
+import {
+  sendPhoneSmsVerification,
+  verifyPhoneCode,
+  getPhoneAuthErrorMessage,
+  formatPhoneNumber,
+} from "../services/phoneAuth";
 import useCartStore from "./useCartStore";
 import useStockStore from "./useStockStore";
 
 export type AuthUser = {
   uid: string;
   email: string | null;
+  phoneNumber?: string | null;
   id?: string;
   role?: "admin" | "seller" | "pending";
 };
@@ -19,6 +26,7 @@ export type AuthUser = {
 type StoredUser = {
   uid: string;
   email: string;
+  phoneNumber?: string;
   password?: string;
   role: "admin" | "seller";
 };
@@ -85,6 +93,13 @@ type AuthState = {
   register: (
     email: string,
     password: string,
+    role?: "admin" | "seller"
+  ) => Promise<{ success: boolean; message?: string }>;
+  sendPhoneOtp: (
+    phoneNumber: string
+  ) => Promise<{ success: boolean; formattedPhone?: string; message?: string }>;
+  verifyPhoneOtp: (
+    code: string,
     role?: "admin" | "seller"
   ) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
@@ -258,11 +273,81 @@ const useAuthStore = create<AuthState>()(
         return { success: true };
       },
 
+      sendPhoneOtp: async (phoneNumber: string) => {
+        try {
+          const res = await sendPhoneSmsVerification(phoneNumber, "recaptcha-container");
+          return {
+            success: true,
+            formattedPhone: res.formattedPhoneNumber,
+          };
+        } catch (error: any) {
+          console.error("Error al enviar SMS de verificación:", error);
+          const friendlyMessage = getPhoneAuthErrorMessage(error);
+          return {
+            success: false,
+            message: friendlyMessage,
+          };
+        }
+      },
+
+      verifyPhoneOtp: async (code: string, role: "admin" | "seller" = "admin") => {
+        try {
+          const firebaseUser = await verifyPhoneCode(code);
+
+          useCartStore.getState().clearCart();
+          useStockStore.getState().clearProducts();
+          localStorage.removeItem("stock-storage");
+          localStorage.removeItem("cart-storage");
+
+          const phone = firebaseUser.phoneNumber || "";
+          const authenticatedUser: AuthUser = {
+            uid: firebaseUser.uid,
+            id: firebaseUser.uid,
+            email: firebaseUser.email || phone,
+            phoneNumber: phone,
+            role,
+          };
+
+          set({
+            user: authenticatedUser,
+            isAuthenticated: true,
+          });
+
+          // Registrar en caché local de usuarios
+          saveStoredUser({
+            uid: firebaseUser.uid,
+            email: phone || `cel_${firebaseUser.uid.slice(0, 6)}`,
+            phoneNumber: phone,
+            role,
+          });
+
+          return { success: true };
+        } catch (error: any) {
+          console.error("Error al verificar código SMS:", error);
+          const friendlyMessage = getPhoneAuthErrorMessage(error);
+          return {
+            success: false,
+            message: friendlyMessage,
+          };
+        }
+      },
+
       logout: async () => {
         try {
           await signOut(auth);
         } catch (e) {
           console.warn("Error al cerrar sesión en Firebase:", e);
+        }
+
+        // Limpiar verificador de reCAPTCHA
+        if (typeof window !== "undefined") {
+          window.confirmationResult = null;
+          if (window.recaptchaVerifier) {
+            try {
+              window.recaptchaVerifier.clear();
+            } catch {}
+            window.recaptchaVerifier = null;
+          }
         }
 
         // Purga completa de memoria y caché de trabajo

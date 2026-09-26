@@ -171,6 +171,7 @@ const AdminSidebar = () => {
         <div className="px-2">
           <ConnectionBadge
             userEmail={user?.email}
+            phoneNumber={user?.phoneNumber}
             role={user?.role}
             compact={false}
           />
@@ -190,6 +191,7 @@ const AdminSidebar = () => {
         onClose={() => setIsLogoutModalOpen(false)}
         onConfirm={handleConfirmLogout}
         userEmail={user?.email}
+        phoneNumber={user?.phoneNumber}
       />
     </aside>
   );
