@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, type ComponentType } from "react";
 import { Toaster } from "sonner";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db, auth } from "./firebase";
+import { db } from "./firebase";
 import useAuthStore from "./store/useAuthStore";
 import useCartStore from "./store/useCartStore"; // 🔥 1. IMPORTA EL STORE DEL CARRITO
 import { useDraftStore } from "./store/useDraftStore";
@@ -19,7 +19,6 @@ import ProtectedRoute from "./layout/ProtectedRoute";
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user); // 🔥 2. SACA EL USUARIO ACTIVO
-  const isAuthReady = useAuthStore((state) => state.isAuthReady);
   const [hydrated, setHydrated] = useState(false);
 
   // 🔥 3. EL TRUCO SÚPER INTELIGENTE PARA SEPARAR LOS CARRITOS:
@@ -42,50 +41,24 @@ function App() {
       return;
     }
 
-    // 1. Conteo inmediato desde almacenamiento local
-    const localDraftsStr = localStorage.getItem(`tinku_drafts_${uid}`);
-    if (localDraftsStr) {
-      try {
-        const parsed = JSON.parse(localDraftsStr);
-        if (Array.isArray(parsed)) {
-          useDraftStore.getState().setDraftCount(parsed.length);
-        }
-      } catch {}
-    }
-
-    // 2. Solo consultar Firestore si Firebase Auth está listo y autenticado
-    if (!isAuthReady || !auth.currentUser || auth.currentUser.uid !== uid) {
-      return;
-    }
-
-    let unsub: (() => void) | undefined;
     try {
       const q = query(
         collection(db, "draftOrders"),
         where("createdByUid", "==", uid),
         where("status", "==", "suspended")
       );
-      unsub = onSnapshot(
+      const unsub = onSnapshot(
         q,
         (snapshot) => {
           useDraftStore.getState().setDraftCount(snapshot.size);
         },
-        (err) => {
-          if (err.code === "permission-denied") {
-            // Manejo silencioso: opera en modo local sin bloquear ni ensuciar la consola
-          } else {
-            console.warn("Aviso al leer draftOrders en App:", err);
-          }
-        }
+        (err) => console.warn("Error leyendo draftOrders en App:", err)
       );
+      return () => unsub();
     } catch (e) {
       console.warn("Error configurando listener de draftOrders:", e);
     }
-
-    return () => {
-      if (unsub) unsub();
-    };
-  }, [user?.uid, isAuthReady]);
+  }, [user?.uid]);
 
   if (!hydrated) return null;
 

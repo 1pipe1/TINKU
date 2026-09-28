@@ -12,7 +12,7 @@ import {
   orderBy,
   getDocs,
 } from "firebase/firestore";
-import { db, auth } from "../../firebase";
+import { db } from "../../firebase";
 
 const AdminSidebar = () => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -21,7 +21,6 @@ const AdminSidebar = () => {
   const draftCount = useDraftStore((state) => state.draftCount);
   const [pendingStockCount, setPendingStockCount] = useState(0);
   const user = useAuthStore((state) => state.user);
-  const isAuthReady = useAuthStore((state) => state.isAuthReady);
   const uid = user?.uid;
   const products = useStockStore((state) => state.products);
 
@@ -48,24 +47,15 @@ const AdminSidebar = () => {
         }
       }
 
-      // 2. Si no hay en local, consultar un máximo de 15 órdenes recientes de Firestore solo si hay sesión activa
-      if (
-        ordersToInspect.length === 0 &&
-        isAuthReady &&
-        auth.currentUser &&
-        auth.currentUser.uid === uid
-      ) {
-        try {
-          const ordersQ = query(
-            collection(db, "usuarios", uid, "orders"),
-            orderBy("createdAt", "desc"),
-            limit(15)
-          );
-          const ordersSnap = await getDocs(ordersQ);
-          ordersToInspect = ordersSnap.docs.map((d) => d.data());
-        } catch (cloudErr) {
-          console.warn("Aviso al consultar órdenes express en Firestore para sidebar:", cloudErr);
-        }
+      // 2. Si no hay en local, consultar un máximo de 15 órdenes recientes de Firestore
+      if (ordersToInspect.length === 0) {
+        const ordersQ = query(
+          collection(db, "usuarios", uid, "orders"),
+          orderBy("createdAt", "desc"),
+          limit(15)
+        );
+        const ordersSnap = await getDocs(ordersQ);
+        ordersToInspect = ordersSnap.docs.map((d) => d.data());
       }
 
       const pendingSet = new Set<string>();
@@ -181,7 +171,6 @@ const AdminSidebar = () => {
         <div className="px-2">
           <ConnectionBadge
             userEmail={user?.email}
-            phoneNumber={user?.phoneNumber}
             role={user?.role}
             compact={false}
           />
@@ -201,7 +190,6 @@ const AdminSidebar = () => {
         onClose={() => setIsLogoutModalOpen(false)}
         onConfirm={handleConfirmLogout}
         userEmail={user?.email}
-        phoneNumber={user?.phoneNumber}
       />
     </aside>
   );

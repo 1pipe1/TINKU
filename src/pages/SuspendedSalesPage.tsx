@@ -7,10 +7,9 @@ import {
   deleteDoc,
   doc,
 } from "firebase/firestore";
-import { db, auth } from "../firebase";
+import { db } from "../firebase";
 import useCartStore from "../store/useCartStore";
 import useAuthStore from "../store/useAuthStore";
-import { useDraftStore } from "../store/useDraftStore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -39,7 +38,6 @@ const SuspendedSalesPage = () => {
   const setCart = useCartStore((state) => state.setCart);
   const setActiveDraftId = useCartStore((state) => state.setActiveDraftId);
   const user = useAuthStore((state) => state.user);
-  const isAuthReady = useAuthStore((state) => state.isAuthReady);
   const uid = user?.uid;
 
   useEffect(() => {
@@ -48,61 +46,25 @@ const SuspendedSalesPage = () => {
       return;
     }
 
-    // 1. Cargar inmediatamente desde LocalStorage (0 ms, sin bloqueos ni errores)
-    const localDraftsStr = localStorage.getItem(`tinku_drafts_${uid}`);
-    if (localDraftsStr) {
-      try {
-        const parsed = JSON.parse(localDraftsStr);
-        if (Array.isArray(parsed)) {
-          setDrafts(parsed);
-          useDraftStore.getState().setDraftCount(parsed.length);
-        }
-      } catch {}
-    }
+    const q = query(
+      collection(db, "draftOrders"),
+      where("createdByUid", "==", uid),
+      where("status", "==", "suspended"),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const items: DraftOrder[] = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as DraftOrder[];
+        setDrafts(items);
+      },
+      (err) => console.error("Error listening draftOrders:", err),
+    );
 
-    // 2. Si Firebase Auth aún no está autenticado o no coincide con uid, esperar
-    if (!isAuthReady || !auth.currentUser || auth.currentUser.uid !== uid) {
-      return;
-    }
-
-    let unsub: (() => void) | undefined;
-    try {
-      const q = query(
-        collection(db, "draftOrders"),
-        where("createdByUid", "==", uid),
-        where("status", "==", "suspended"),
-      );
-      unsub = onSnapshot(
-        q,
-        (snapshot) => {
-          const cloudItems: DraftOrder[] = snapshot.docs.map((d) => ({
-            id: d.id,
-            ...d.data(),
-          })) as DraftOrder[];
-
-          // Fusionar con locales para no perder nada
-          setDrafts(cloudItems);
-          localStorage.setItem(`tinku_drafts_${uid}`, JSON.stringify(cloudItems));
-          useDraftStore.getState().setDraftCount(cloudItems.length);
-        },
-        (err) => {
-          if (err.code === "permission-denied") {
-            console.warn(
-              "Permisos de draftOrders pendientes en Firebase Console. Operando con almacenamiento local seguro."
-            );
-          } else {
-            console.warn("Aviso al consultar draftOrders:", err);
-          }
-        },
-      );
-    } catch (e) {
-      console.warn("Error iniciando listener de draftOrders:", e);
-    }
-
-    return () => {
-      if (unsub) unsub();
-    };
-  }, [uid, isAuthReady]);
+    return () => unsub();
+  }, [uid]);
 
 
   const handleResume = (draft: DraftOrder) => {
@@ -122,33 +84,10 @@ const SuspendedSalesPage = () => {
   };
 
   const handleConfirmCancelDraft = async () => {
-    if (!draftToCancel || !uid) return;
+    if (!draftToCancel) return;
     try {
       setLoading(true);
-
-      // 1. Eliminar inmediatamente del almacenamiento local
-      const localDraftsStr = localStorage.getItem(`tinku_drafts_${uid}`);
-      if (localDraftsStr) {
-        try {
-          const parsed = JSON.parse(localDraftsStr);
-          const filtered = parsed.filter((d: any) => d.id !== draftToCancel);
-          localStorage.setItem(`tinku_drafts_${uid}`, JSON.stringify(filtered));
-          setDrafts(filtered);
-          useDraftStore.getState().setDraftCount(filtered.length);
-        } catch {}
-      } else {
-        setDrafts((prev) => prev.filter((d) => d.id !== draftToCancel));
-      }
-
-      // 2. Si está conectado a Firebase y el usuario está autenticado, borrar en la nube
-      try {
-        if (auth.currentUser && auth.currentUser.uid === uid) {
-          await deleteDoc(doc(db, "draftOrders", draftToCancel));
-        }
-      } catch (cloudErr) {
-        console.warn("Borrador eliminado localmente; sincronización en la nube omitida:", cloudErr);
-      }
-
+      await deleteDoc(doc(db, "draftOrders", draftToCancel));
       toast.success("Venta suspendida descartada con éxito.");
       setDraftToCancel(null);
     } catch (error) {

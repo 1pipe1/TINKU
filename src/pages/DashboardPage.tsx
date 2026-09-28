@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
-import { db, auth } from "../firebase";
+import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
 import useStockStore from "../store/useStockStore";
 import useAuthStore from "../store/useAuthStore";
 
@@ -61,7 +62,7 @@ const DashboardPage = () => {
   });
 
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const isAuthReady = useAuthStore((state) => state.isAuthReady);
+  const auth = getAuth();
 
   // Costo diario calculado por mes dividido 31
   const dailyFixedCost = Math.round(monthlyFixedCost / 31);
@@ -141,32 +142,28 @@ const DashboardPage = () => {
       setLoading(false);
     }
 
-    // 2. Consulta puntual única a Firestore (solo si la sesión en la nube está activa y verificada)
+    // 2. Consulta puntual única a Firestore (con limit(100) para cuidar cuota y tiempo de respuesta)
     let isMounted = true;
-    if (isAuthReady && auth.currentUser && auth.currentUser.uid === uid) {
-      const ordersQ = query(
-        collection(db, "usuarios", uid, "orders"),
-        orderBy("createdAt", "desc"),
-        limit(100)
-      );
-      getDocs(ordersQ)
-        .then((snapshot) => {
-          if (!isMounted) return;
-          const fsOrders: Order[] = snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...docSnap.data(),
-          })) as Order[];
-          setOrders(mergeWithLocal(fsOrders));
-        })
-        .catch((err) => {
-          console.warn("Firestore orders no disponibles en Dashboard:", err);
-        })
-        .finally(() => {
-          if (isMounted) setLoading(false);
-        });
-    } else {
-      setLoading(false);
-    }
+    const ordersQ = query(
+      collection(db, "usuarios", uid, "orders"),
+      orderBy("createdAt", "desc"),
+      limit(100)
+    );
+    getDocs(ordersQ)
+      .then((snapshot) => {
+        if (!isMounted) return;
+        const fsOrders: Order[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as Order[];
+        setOrders(mergeWithLocal(fsOrders));
+      })
+      .catch((err) => {
+        console.warn("Firestore orders no disponibles en Dashboard:", err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
 
     // 3. Escuchar evento de actualización inmediata de órdenes locales (ej. al vender o cancelar)
     const handleOrdersSync = () => {

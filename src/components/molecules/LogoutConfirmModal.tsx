@@ -5,7 +5,6 @@ interface LogoutConfirmModalProps {
   onClose: () => void;
   onConfirm: () => void;
   userEmail?: string | null;
-  phoneNumber?: string | null;
 }
 
 const LogoutConfirmModal: FC<LogoutConfirmModalProps> = ({
@@ -13,11 +12,8 @@ const LogoutConfirmModal: FC<LogoutConfirmModalProps> = ({
   onClose,
   onConfirm,
   userEmail,
-  phoneNumber,
 }) => {
   if (!isOpen) return null;
-
-  const displayUser = phoneNumber || userEmail;
 
   return (
     <div className="fixed inset-0 z-100 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -29,9 +25,9 @@ const LogoutConfirmModal: FC<LogoutConfirmModalProps> = ({
           ¿Cerrar sesión en TINKU?
         </h3>
         <p className="text-xs text-gray-500 text-center mb-6">
-          {displayUser ? (
+          {userEmail ? (
             <span className="block mb-1">
-              Usuario actual: <strong className="text-gray-700">{displayUser}</strong>
+              Usuario actual: <strong className="text-gray-700">{userEmail}</strong>
             </span>
           ) : null}
           Podrás ingresar con este o con cualquier otro usuario para gestionar su catálogo.

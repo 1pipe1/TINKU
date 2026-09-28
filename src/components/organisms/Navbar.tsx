@@ -66,7 +66,6 @@ const Navbar = ({
                 {/* 📡 Indicador de Conexión en Línea / Desconectado + Usuario (Visible en Celular y PC) */}
                 <ConnectionBadge
                   userEmail={user?.email}
-                  phoneNumber={user?.phoneNumber}
                   role={role}
                   compact={false}
                 />
@@ -120,7 +119,6 @@ const Navbar = ({
         onClose={() => setIsLogoutModalOpen(false)}
         onConfirm={handleConfirmLogout}
         userEmail={user?.email}
-        phoneNumber={user?.phoneNumber}
       />
     </>
   );

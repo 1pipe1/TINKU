@@ -1,0 +1,501 @@
+nombre,categoria,precio,icono
+Coca-Cola 1.5L,Bebidas,0,🥤
+Coca-Cola 400ml,Bebidas,0,🥤
+Postobón Manzana 1.5L,Bebidas,0,🍎
+Postobón Uva 1.5L,Bebidas,0,🍇
+Postobón Colombiana 1.5L,Bebidas,0,🥤
+Postobón Naranja 400ml,Bebidas,0,🍊
+Pepsi 400ml,Bebidas,0,🥤
+Cuatro 400ml,Bebidas,0,🍋
+Hit Mango Caja 1L,Bebidas,0,🥭
+Hit Mora Caja 1L,Bebidas,0,🫐
+Hit Tropical Caja 1L,Bebidas,0,🧃
+Agua Cristal Sin Tapa 600ml,Bebidas,0,💧
+Agua Cristal Con Tapa 600ml,Bebidas,0,💧
+Bretaña 300ml,Bebidas,0,🧊
+Pony Malta 330ml,Bebidas,0,🍺
+Red Bull 250ml,Bebidas,0,⚡
+Hatsu Té 400ml,Bebidas,0,🍵
+Cerveza Águila Light Botella,Licores,0,🍺
+Cerveza Poker Botella,Licores,0,🍺
+Cerveza Club Colombia Dorada,Licores,0,🍻
+Leche Alquería Bolsa 1L,Lácteos,0,🥛
+Leche Alpina Bolsa 1L,Lácteos,0,🥛
+Queso Bogotano Bloque (Libra),Lácteos,0,🧀
+Queso Mozzarella Bloque (Libra),Lácteos,0,🧀
+Kumis Alpina Vaso,Lácteos,0,🥛
+Yogurt Alpina Vaso,Lácteos,0,🥛
+Crema de Leche Alquería,Lácteos,0,🥛
+Mantequilla La Vaquita Barra,Lácteos,0,🧈
+Huevos Rojos Tipo A (Unidad),Lácteos,0,🥚
+Huevos AA (Unidad),Lácteos,0,🥚
+Arroz Diana 1000g,Abarrotes,0,🍚
+Arroz Roa 1000g,Abarrotes,0,🍚
+Lenteja Granel (Libra),Abarrotes,0,🫘
+Frijol Bola Roja (Libra),Abarrotes,0,🫘
+Aceite Premier 1000ml,Abarrotes,0,🍳
+Aceite Gourmet 500ml,Abarrotes,0,🍳
+Azúcar Incauca 1000g,Abarrotes,0,🧂
+Panela Redonda Morena (Unidad),Abarrotes,0,🟤
+Sal Marina Refisal 500g,Abarrotes,0,🧂
+Harina de Maíz Doña Nora,Abarrotes,0,🌽
+Harina de Trigo Haz de Oros,Abarrotes,0,🌾
+Pasta Doria Spaghetti 500g,Abarrotes,0,🍝
+Atún Van Camp's Aceite Lata,Abarrotes,0,🐟
+Sardinas Lumar Lata,Abarrotes,0,🐟
+Salsa de Tomate Fruco Doypack,Abarrotes,0,🍅
+Mayonesa Fruco Doypack,Abarrotes,0,🥗
+Chocolate Corona Pastilla,Abarrotes,0,🍫
+Café Sello Rojo 250g,Abarrotes,0,☕
+Pan tajado Bimbo Pequeño,Panadería,0,🍞
+Pan de Bono (Unidad),Panadería,0,🥖
+Galletas Festival Fresa,Snacks,0,🍪
+Galletas Festival Chocolate,Snacks,0,🍪
+Galletas Ducales Bloque,Snacks,0,🍘
+Galletas Saltín Noel Tradicional,Snacks,0,🍘
+Chocorramo Individual,Snacks,0,🧁
+Barra Gala Ramo,Snacks,0,🍰
+Detodito Natural Mediano,Snacks,0,🍟
+Papas Margarita Limón Medias,Snacks,0,🥔
+Trident Menta Caja,Snacks,0,🍬
+Chicles Trident Fresa,Snacks,0,🍬
+Papel Higiénico Familia 4 Rollo,Aseo,0,🧻
+Jabón de Baño Heno de Pravia,Aseo,0,🧼
+Jabón Rey Barra Azul,Aseo,0,🧼
+Detergente en Polvo Ariel 400g,Aseo,0,🧺
+Límpido Clorox Pequeño,Aseo,0,🧴
+Crema Dental Colgate Triple Acción,Aseo,0,🦷
+Bioexpert Shampoo Sobre,Aseo,0,🧴
+Toallas Higiénicas Nosotras Multiestilo,Aseo,0,🩹
+Caja de Fósforos El Rey,Hogar,0,🔥
+Vela Blanca Tradicional (Unidad),Hogar,0,🕯️
+Jabón Rey Light 1000g,Aseo,0,🧼
+Arroz Zulia Familiar 1.5L,Abarrotes,0,🍚
+Jugo Hit Pack Lata,Bebidas,0,🧃
+Detergente Ariel Lata Lata,Aseo,0,🧺
+Atún Van Camp's Zero Bolsa,Abarrotes,0,🐟
+Galletas Festival Lata Bolsa,Snacks,0,🍪
+Leche Colanta Pequeño 250g,Lácteos,0,🥛
+Coca-Cola Light 400ml,Bebidas,0,🥤
+Coca-Cola Grande 250g,Bebidas,0,🥤
+Kumis Alpina Unidad 2L,Lácteos,0,🥛
+Límpido Clorox Frasco 500g,Aseo,0,🧴
+Harina Doña Nora Frasco Unidad,Abarrotes,0,🌽
+Mayonesa Fruco Pequeño Lata,Abarrotes,0,🥗
+Arroz Roa Unidad Bolsa,Abarrotes,0,🍚
+Café Águila Roja Light 2L,Abarrotes,0,☕
+Aceite Premier Pack 2L,Abarrotes,0,🍳
+Panela Light 400ml,Abarrotes,0,🟤
+Galletas Saltín Pequeño 1000g,Snacks,0,🍘
+Pasta Doria Unidad 500g,Abarrotes,0,🍝
+Vela Blanca Lata Unidad,Hogar,0,🕯️
+Límpido Clorox Pequeño 2L,Aseo,0,🧴
+Kumis Alpina Light Lata,Lácteos,0,🥛
+Mayonesa Fruco Especial 1000ml,Abarrotes,0,🥗
+Leche Alpina Tradicional 250g,Lácteos,0,🥛
+Kumis Alpina Pack 500g,Lácteos,0,🥛
+Pasta Doria Bolsa 400ml,Abarrotes,0,🍝
+Crema Colgate Familiar 1.5L,Aseo,0,🦷
+Postobón Zero Unidad,Bebidas,0,🥤
+Pepsi Zero 1000ml,Bebidas,0,🥤
+Aceite Gourmet Frasco Lata,Abarrotes,0,🍳
+Detodito Tradicional 500g,Snacks,0,🍟
+Panela Grande 250g,Abarrotes,0,🟤
+Te Hatsu Familiar 400ml,Bebidas,0,🍵
+Chocolate Corona Familiar 1.5L,Abarrotes,0,🍫
+Leche Alpina Unidad Unidad,Lácteos,0,🥛
+Cerveza Águila Grande 1000ml,Licores,0,🍺
+Vela Blanca Tradicional Lata,Hogar,0,🕯️
+Yogurt Alpina Bolsa 1.5L,Lácteos,0,🥛
+Aceite Gourmet Light 400ml,Abarrotes,0,🍳
+Jabón Heno de Pravia Especial Unidad,Aseo,0,🧼
+Arequipe Alpina Familiar 250g,Lácteos,0,🍯
+Agua Brisa Lata 500ml,Bebidas,0,💧
+Mr Tea Pack 2L,Bebidas,0,🧊
+Agua Brisa Pack 250g,Bebidas,0,💧
+Mr Tea Light Bolsa,Bebidas,0,🧊
+Coca-Cola Especial 2L,Bebidas,0,🥤
+Red Bull Lata 500g,Bebidas,0,⚡
+Frijol cargamanto Frasco 250g,Abarrotes,0,🫘
+Club Colombia Pack Unidad,Licores,0,🍻
+Enervon Light 1.5L,Bebidas,0,⚡
+Arequipe Alpina Light 1000g,Lácteos,0,🍯
+Club Colombia Bolsa Lata,Licores,0,🍻
+Coca-Cola Tradicional 1.5L,Bebidas,0,🥤
+Galletas Ducales Especial 400ml,Snacks,0,🍘
+Enervon Familiar 1000ml,Bebidas,0,⚡
+Sal Refisal Tradicional 1000ml,Abarrotes,0,🧂
+Jugo Hit Especial 250g,Bebidas,0,🧃
+Club Colombia Especial 500ml,Licores,0,🍻
+Galletas Saltín Grande 250g,Snacks,0,🍘
+Vela Blanca Tradicional 500g,Hogar,0,🕯️
+Jugo Hit Grande 1000g,Bebidas,0,🧃
+Sal Refisal Frasco 1000g,Abarrotes,0,🧂
+Pepsi Tradicional Lata,Bebidas,0,🥤
+Pony Malta Grande Bolsa,Bebidas,0,🍺
+Shampoo Bioexpert Light 400ml,Aseo,0,🧴
+Papas Margarita Pequeño 1000g,Snacks,0,🥔
+Arroz Zulia Light Bolsa,Abarrotes,0,🍚
+Postobón Frasco Lata,Bebidas,0,🥤
+Mr Tea Frasco 2L,Bebidas,0,🧊
+Aceite Gourmet Especial 400ml,Abarrotes,0,🍳
+Chocolate Corona Familiar Unidad,Abarrotes,0,🍫
+Red Bull Especial 500g,Bebidas,0,⚡
+Shampoo Bioexpert Pack Bolsa,Aseo,0,🧴
+Café Águila Roja Frasco 500g,Abarrotes,0,☕
+Café Sello Rojo Zero 500ml,Abarrotes,0,☕
+Harina Haz de Oros Bolsa Lata,Abarrotes,0,🌾
+Aceite Gourmet Light Lata,Abarrotes,0,🍳
+Postobón Light 1.5L,Bebidas,0,🥤
+Coca-Cola Frasco Bolsa,Bebidas,0,🥤
+Sardinas Lumar Pack 2L,Abarrotes,0,🐟
+Jabón Rey Grande 2L,Aseo,0,🧼
+Sal Refisal Familiar 1000g,Abarrotes,0,🧂
+Arroz Zulia Zero 400ml,Abarrotes,0,🍚
+Queso Doble Crema Light 1000g,Lácteos,0,🧀
+Panela Frasco 500ml,Abarrotes,0,🟤
+Hit Especial Bolsa,Bebidas,0,🧃
+Galletas Saltín Unidad Unidad,Snacks,0,🍘
+Galletas Festival Frasco 1.5L,Snacks,0,🍪
+Café Águila Roja Pequeño 1.5L,Abarrotes,0,☕
+Mr Tea Grande Bolsa,Bebidas,0,🧊
+Agua Brisa Pequeño 2L,Bebidas,0,💧
+Arroz Zulia Unidad Bolsa,Abarrotes,0,🍚
+Yogurt Alpina Tradicional 2L,Lácteos,0,🥛
+Panela Grande 500g,Abarrotes,0,🟤
+Leche Alquería Unidad 400ml,Lácteos,0,🥛
+Arroz Roa Pack 250g,Abarrotes,0,🍚
+Jugo Hit Pequeño 1000g,Bebidas,0,🧃
+Mr Tea Especial Unidad,Bebidas,0,🧊
+Leche Alquería Lata 1000g,Lácteos,0,🥛
+Galletas Ducales Light 2L,Snacks,0,🍘
+Enervon Pequeño 1000ml,Bebidas,0,⚡
+Leche Colanta Tradicional 500ml,Lácteos,0,🥛
+Fósforos El Rey Pack 400ml,Hogar,0,🔥
+Límpido Clorox Pack Lata,Aseo,0,🧴
+Mr Tea Lata 500ml,Bebidas,0,🧊
+Galletas Ducales Familiar Bolsa,Snacks,0,🍘
+Sardinas Lumar Familiar 250g,Abarrotes,0,🐟
+Pepsi Grande 250g,Bebidas,0,🥤
+Leche Alquería Unidad 2L,Lácteos,0,🥛
+Chocolate Corona Familiar 500ml,Abarrotes,0,🍫
+Arroz Zulia Unidad 1.5L,Abarrotes,0,🍚
+Sardinas Lumar Frasco 250g,Abarrotes,0,🐟
+Harina Haz de Oros Tradicional 500ml,Abarrotes,0,🌾
+Cerveza Águila Light 1000ml,Licores,0,🍺
+Arroz Zulia Light Unidad,Abarrotes,0,🍚
+Pan Bimbo Zero 500ml,Panadería,0,🍞
+Te Hatsu Pequeño 1000g,Bebidas,0,🍵
+Detergente Ariel Pequeño Lata,Aseo,0,🧺
+Barra Gala Unidad 1000g,Snacks,0,🍰
+Leche Colanta Familiar 1000ml,Lácteos,0,🥛
+Agua Brisa Tradicional Lata,Bebidas,0,💧
+Red Bull Especial Lata,Bebidas,0,⚡
+Barra Gala Especial 500ml,Snacks,0,🍰
+Hit Light 400ml,Bebidas,0,🧃
+Mr Tea Unidad 400ml,Bebidas,0,🧊
+Pepsi Especial 400ml,Bebidas,0,🥤
+Postobón Pack 500ml,Bebidas,0,🥤
+Agua Brisa Pequeño 500g,Bebidas,0,💧
+Pony Malta Zero 1000ml,Bebidas,0,🍺
+Kumis Alpina Lata 1000ml,Lácteos,0,🥛
+Harina Doña Nora Tradicional 250g,Abarrotes,0,🌽
+Te Hatsu Frasco 500g,Bebidas,0,🍵
+Papas Margarita Tradicional 500ml,Snacks,0,🥔
+Coca-Cola Lata 250g,Bebidas,0,🥤
+Lentejas Light 1000g,Abarrotes,0,🫘
+Pasta Doria Tradicional 500g,Abarrotes,0,🍝
+Aceite Gourmet Bolsa Bolsa,Abarrotes,0,🍳
+Lentejas Pack Unidad,Abarrotes,0,🫘
+Detodito Zero 1000ml,Snacks,0,🍟
+Harina Doña Nora Especial Lata,Abarrotes,0,🌽
+Harina Doña Nora Lata 1.5L,Abarrotes,0,🌽
+Papel Higiénico Familia Light Unidad,Aseo,0,🧻
+Vela Blanca Grande Lata,Hogar,0,🕯️
+Arequipe Alpina Unidad 1.5L,Lácteos,0,🍯
+Toallas Nosotras Tradicional 500ml,Aseo,0,🩹
+Leche Alpina Light 500g,Lácteos,0,🥛
+Leche Alpina Familiar Lata,Lácteos,0,🥛
+Toallas Nosotras Bolsa Lata,Aseo,0,🩹
+Atún Van Camp's Pack Unidad,Abarrotes,0,🐟
+Agua Cristal Bolsa 1000g,Bebidas,0,💧
+Galletas Saltín Pequeño 250g,Snacks,0,🍘
+Sardinas Lumar Grande 250g,Abarrotes,0,🐟
+Café Sello Rojo Frasco 1.5L,Abarrotes,0,☕
+Agua Cristal Zero 1000g,Bebidas,0,💧
+Coca-Cola Grande 1000g,Bebidas,0,🥤
+Salsa de Tomate Fruco Pack 500ml,Abarrotes,0,🍅
+Queso Campesino Unidad 250g,Lácteos,0,🧀
+Pepsi Grande Lata,Bebidas,0,🥤
+Papas Margarita Pequeño Bolsa,Snacks,0,🥔
+Papel Higiénico Familia Frasco 2L,Aseo,0,🧻
+Arroz Diana Frasco 2L,Abarrotes,0,🍚
+Jabón Heno de Pravia Pack 1000ml,Aseo,0,🧼
+Leche Colanta Lata 400ml,Lácteos,0,🥛
+Galletas Festival Lata 400ml,Snacks,0,🍪
+Papel Higiénico Familia Grande Lata,Aseo,0,🧻
+Harina Haz de Oros Familiar 2L,Abarrotes,0,🌾
+Aceite Premier Pequeño 500g,Abarrotes,0,🍳
+Toallas Nosotras Lata 500ml,Aseo,0,🩹
+Agua Brisa Especial Bolsa,Bebidas,0,💧
+Coca-Cola Frasco 2L,Bebidas,0,🥤
+Postobón Bolsa Unidad,Bebidas,0,🥤
+Papel Higiénico Familia Grande Unidad,Aseo,0,🧻
+Galletas Ducales Pequeño 2L,Snacks,0,🍘
+Leche Alpina Familiar 1000g,Lácteos,0,🥛
+Postobón Especial 400ml,Bebidas,0,🥤
+Vela Blanca Lata 500g,Hogar,0,🕯️
+Hit Especial Unidad,Bebidas,0,🧃
+Chocorramo Especial 400ml,Snacks,0,🧁
+Cerveza Poker Pack 2L,Licores,0,🍺
+Chocolate Corona Light 1.5L,Abarrotes,0,🍫
+Café Águila Roja Familiar 1000ml,Abarrotes,0,☕
+Fósforos El Rey Tradicional 1.5L,Hogar,0,🔥
+Frijol cargamanto Lata 400ml,Abarrotes,0,🫘
+Límpido Clorox Grande Bolsa,Aseo,0,🧴
+Aceite Premier Familiar Lata,Abarrotes,0,🍳
+Pasta Doria Light 500g,Abarrotes,0,🍝
+Pasta Doria Familiar 500g,Abarrotes,0,🍝
+Detergente Ariel Zero 1.5L,Aseo,0,🧺
+Mr Tea Unidad 2L,Bebidas,0,🧊
+Postobón Pequeño Lata,Bebidas,0,🥤
+Crema Colgate Grande 2L,Aseo,0,🦷
+Pepsi Frasco Bolsa,Bebidas,0,🥤
+Harina Doña Nora Light Unidad,Abarrotes,0,🌽
+Toallas Nosotras Bolsa Bolsa,Aseo,0,🩹
+Trident Lata 500ml,Snacks,0,🍬
+Fósforos El Rey Especial 500ml,Hogar,0,🔥
+Mayonesa Fruco Pack 2L,Abarrotes,0,🥗
+Pepsi Unidad 400ml,Bebidas,0,🥤
+Arroz Zulia Tradicional 500g,Abarrotes,0,🍚
+Enervon Grande Unidad,Bebidas,0,⚡
+Frijol cargamanto Light Bolsa,Abarrotes,0,🫘
+Queso Doble Crema Familiar 1.5L,Lácteos,0,🧀
+Coca-Cola Pack 1000ml,Bebidas,0,🥤
+Café Águila Roja Bolsa 2L,Abarrotes,0,☕
+Salsa de Tomate Fruco Light 1000g,Abarrotes,0,🍅
+Enervon Pack 500ml,Bebidas,0,⚡
+Frijol cargamanto Pequeño 1000ml,Abarrotes,0,🫘
+Chocolate Corona Pequeño Bolsa,Abarrotes,0,🍫
+Queso Doble Crema Tradicional 500g,Lácteos,0,🧀
+Chocorramo Tradicional 500g,Snacks,0,🧁
+Mantequilla La Vaquita Frasco Bolsa,Lácteos,0,🧈
+Límpido Clorox Grande 500ml,Aseo,0,🧴
+Jabón Rey Familiar Lata,Aseo,0,🧼
+Galletas Ducales Pack 500ml,Snacks,0,🍘
+Atún Van Camp's Bolsa Lata,Abarrotes,0,🐟
+Leche Colanta Grande 2L,Lácteos,0,🥛
+Pan Bimbo Familiar Lata,Panadería,0,🍞
+Aceite Premier Unidad 500ml,Abarrotes,0,🍳
+Club Colombia Familiar Lata,Licores,0,🍻
+Jugo Hit Unidad 1000g,Bebidas,0,🧃
+Galletas Saltín Pack 2L,Snacks,0,🍘
+Chocolate Corona Unidad 500g,Abarrotes,0,🍫
+Mayonesa Fruco Unidad 500g,Abarrotes,0,🥗
+Café Sello Rojo Tradicional 250g,Abarrotes,0,☕
+Aceite Gourmet Zero 1000g,Abarrotes,0,🍳
+Shampoo Bioexpert Pack 2L,Aseo,0,🧴
+Detergente Ariel Lata 1000g,Aseo,0,🧺
+Arroz Roa Light 1000ml,Abarrotes,0,🍚
+Café Águila Roja Lata Bolsa,Abarrotes,0,☕
+Enervon Tradicional 2L,Bebidas,0,⚡
+Fósforos El Rey Pack 2L,Hogar,0,🔥
+Jabón Rey Pack Bolsa,Aseo,0,🧼
+Cerveza Águila Grande 500g,Licores,0,🍺
+Galletas Ducales Pequeño Lata,Snacks,0,🍘
+Kumis Alpina Frasco 1000g,Lácteos,0,🥛
+Fósforos El Rey Especial 1.5L,Hogar,0,🔥
+Atún Van Camp's Frasco 500ml,Abarrotes,0,🐟
+Aceite Premier Lata 400ml,Abarrotes,0,🍳
+Leche Colanta Lata 1.5L,Lácteos,0,🥛
+Queso Campesino Zero 2L,Lácteos,0,🧀
+Vela Blanca Bolsa 1.5L,Hogar,0,🕯️
+Leche Alquería Bolsa 1000g,Lácteos,0,🥛
+Mantequilla La Vaquita Lata 400ml,Lácteos,0,🧈
+Mayonesa Fruco Familiar 500ml,Abarrotes,0,🥗
+Pasta Doria Grande 1000ml,Abarrotes,0,🍝
+Pan Bimbo Familiar 1000ml,Panadería,0,🍞
+Chocolate Corona Pack 250g,Abarrotes,0,🍫
+Pasta Doria Grande Bolsa,Abarrotes,0,🍝
+Enervon Tradicional 500g,Bebidas,0,⚡
+Frijol cargamanto Pack Unidad,Abarrotes,0,🫘
+Red Bull Pack 2L,Bebidas,0,⚡
+Barra Gala Bolsa 400ml,Snacks,0,🍰
+Papel Higiénico Familia Zero 500ml,Aseo,0,🧻
+Pasta Doria Grande 1000g,Abarrotes,0,🍝
+Agua Cristal Grande Lata,Bebidas,0,💧
+Límpido Clorox Lata 500g,Aseo,0,🧴
+Leche Alquería Tradicional 1.5L,Lácteos,0,🥛
+Agua Cristal Zero Bolsa,Bebidas,0,💧
+Club Colombia Bolsa Unidad,Licores,0,🍻
+Pan Bimbo Tradicional 250g,Panadería,0,🍞
+Kumis Alpina Pack 500ml,Lácteos,0,🥛
+Agua Brisa Familiar 1.5L,Bebidas,0,💧
+Red Bull Unidad 1000g,Bebidas,0,⚡
+Jabón Rey Especial 1000g,Aseo,0,🧼
+Trident Lata 400ml,Snacks,0,🍬
+Galletas Saltín Especial Unidad,Snacks,0,🍘
+Cerveza Águila Tradicional 1.5L,Licores,0,🍺
+Sal Refisal Bolsa 500g,Abarrotes,0,🧂
+Pasta Doria Especial 500g,Abarrotes,0,🍝
+Cerveza Poker Light 2L,Licores,0,🍺
+Galletas Festival Especial 500g,Snacks,0,🍪
+Jugo Hit Pack Unidad,Bebidas,0,🧃
+Jabón Heno de Pravia Lata 250g,Aseo,0,🧼
+Mayonesa Fruco Frasco Bolsa,Abarrotes,0,🥗
+Detergente Ariel Lata 250g,Aseo,0,🧺
+Papas Margarita Especial 2L,Snacks,0,🥔
+Fósforos El Rey Bolsa 500ml,Hogar,0,🔥
+Lentejas Tradicional Lata,Abarrotes,0,🫘
+Salsa de Tomate Fruco Tradicional Bolsa,Abarrotes,0,🍅
+Atún Van Camp's Familiar 1000g,Abarrotes,0,🐟
+Crema Colgate Lata 500g,Aseo,0,🦷
+Frijol cargamanto Grande 500ml,Abarrotes,0,🫘
+Mr Tea Unidad 1.5L,Bebidas,0,🧊
+Atún Van Camp's Light 400ml,Abarrotes,0,🐟
+Chocolate Corona Light Bolsa,Abarrotes,0,🍫
+Detergente Ariel Pack 1.5L,Aseo,0,🧺
+Hit Zero 1000g,Bebidas,0,🧃
+Agua Cristal Tradicional 500g,Bebidas,0,💧
+Salsa de Tomate Fruco Zero 500g,Abarrotes,0,🍅
+Galletas Ducales Pack 1.5L,Snacks,0,🍘
+Queso Doble Crema Zero 500ml,Lácteos,0,🧀
+Mantequilla La Vaquita Grande 2L,Lácteos,0,🧈
+Red Bull Light 2L,Bebidas,0,⚡
+Postobón Grande Unidad,Bebidas,0,🥤
+Toallas Nosotras Tradicional Bolsa,Aseo,0,🩹
+Galletas Festival Especial 400ml,Snacks,0,🍪
+Arroz Roa Pack Bolsa,Abarrotes,0,🍚
+Fósforos El Rey Familiar 500ml,Hogar,0,🔥
+Sal Refisal Unidad 250g,Abarrotes,0,🧂
+Hit Especial 1000ml,Bebidas,0,🧃
+Mayonesa Fruco Frasco 500ml,Abarrotes,0,🥗
+Shampoo Bioexpert Familiar 250g,Aseo,0,🧴
+Mantequilla La Vaquita Zero 400ml,Lácteos,0,🧈
+Arroz Roa Especial Unidad,Abarrotes,0,🍚
+Café Sello Rojo Lata 1000ml,Abarrotes,0,☕
+Salsa de Tomate Fruco Bolsa 400ml,Abarrotes,0,🍅
+Harina Haz de Oros Pack 250g,Abarrotes,0,🌾
+Pan Bimbo Zero 250g,Panadería,0,🍞
+Leche Alpina Especial 250g,Lácteos,0,🥛
+Arequipe Alpina Pack Lata,Lácteos,0,🍯
+Yogurt Alpina Frasco 1000ml,Lácteos,0,🥛
+Galletas Saltín Light 250g,Snacks,0,🍘
+Queso Doble Crema Light Lata,Lácteos,0,🧀
+Te Hatsu Pequeño Unidad,Bebidas,0,🍵
+Leche Colanta Unidad Lata,Lácteos,0,🥛
+Papas Margarita Pack 250g,Snacks,0,🥔
+Jabón Heno de Pravia Familiar 1000ml,Aseo,0,🧼
+Vela Blanca Bolsa 2L,Hogar,0,🕯️
+Pony Malta Especial 500ml,Bebidas,0,🍺
+Cerveza Poker Familiar Lata,Licores,0,🍺
+Sal Refisal Light 1000ml,Abarrotes,0,🧂
+Mr Tea Light 1000g,Bebidas,0,🧊
+Galletas Saltín Familiar 1.5L,Snacks,0,🍘
+Fósforos El Rey Pequeño 1000ml,Hogar,0,🔥
+Vela Blanca Tradicional Bolsa,Hogar,0,🕯️
+Club Colombia Frasco 2L,Licores,0,🍻
+Lentejas Lata Unidad,Abarrotes,0,🫘
+Atún Van Camp's Frasco 1000g,Abarrotes,0,🐟
+Azúcar Incauca Especial 1.5L,Abarrotes,0,🧂
+Yogurt Alpina Pequeño Lata,Lácteos,0,🥛
+Queso Doble Crema Lata 2L,Lácteos,0,🧀
+Jabón Rey Especial 1000ml,Aseo,0,🧼
+Mr Tea Tradicional 1000g,Bebidas,0,🧊
+Mr Tea Zero 500g,Bebidas,0,🧊
+Sardinas Lumar Grande Lata,Abarrotes,0,🐟
+Aceite Premier Especial 1000g,Abarrotes,0,🍳
+Panela Lata 1000g,Abarrotes,0,🟤
+Aceite Premier Pequeño Lata,Abarrotes,0,🍳
+Jabón Heno de Pravia Bolsa Unidad,Aseo,0,🧼
+Toallas Nosotras Zero 250g,Aseo,0,🩹
+Yogurt Alpina Grande Unidad,Lácteos,0,🥛
+Leche Colanta Tradicional 1000ml,Lácteos,0,🥛
+Jabón Rey Pack 400ml,Aseo,0,🧼
+Agua Brisa Unidad 1000g,Bebidas,0,💧
+Shampoo Bioexpert Tradicional 400ml,Aseo,0,🧴
+Galletas Ducales Tradicional 1.5L,Snacks,0,🍘
+Te Hatsu Unidad 400ml,Bebidas,0,🍵
+Pasta Doria Lata Bolsa,Abarrotes,0,🍝
+Red Bull Tradicional 500ml,Bebidas,0,⚡
+Leche Alquería Tradicional 500ml,Lácteos,0,🥛
+Salsa de Tomate Fruco Lata 500ml,Abarrotes,0,🍅
+Mr Tea Familiar Lata,Bebidas,0,🧊
+Atún Van Camp's Bolsa Bolsa,Abarrotes,0,🐟
+Sardinas Lumar Familiar 2L,Abarrotes,0,🐟
+Arroz Zulia Unidad 250g,Abarrotes,0,🍚
+Frijol cargamanto Grande Bolsa,Abarrotes,0,🫘
+Agua Cristal Grande Unidad,Bebidas,0,💧
+Pan Bimbo Zero 500g,Panadería,0,🍞
+Mr Tea Especial 1000g,Bebidas,0,🧊
+Jugo Hit Tradicional 400ml,Bebidas,0,🧃
+Queso Campesino Pack Unidad,Lácteos,0,🧀
+Cerveza Poker Bolsa 500ml,Licores,0,🍺
+Mantequilla La Vaquita Bolsa 400ml,Lácteos,0,🧈
+Harina Haz de Oros Lata 1000ml,Abarrotes,0,🌾
+Queso Campesino Tradicional Lata,Lácteos,0,🧀
+Shampoo Bioexpert Lata 250g,Aseo,0,🧴
+Aceite Gourmet Unidad 250g,Abarrotes,0,🍳
+Galletas Saltín Grande 500ml,Snacks,0,🍘
+Arroz Roa Zero 1000g,Abarrotes,0,🍚
+Detodito Grande 1000ml,Snacks,0,🍟
+Galletas Saltín Light 1000ml,Snacks,0,🍘
+Fósforos El Rey Tradicional 1000g,Hogar,0,🔥
+Yogurt Alpina Lata 500ml,Lácteos,0,🥛
+Lentejas Grande Unidad,Abarrotes,0,🫘
+Crema Colgate Pack 1.5L,Aseo,0,🦷
+Cerveza Poker Pequeño 1000g,Licores,0,🍺
+Barra Gala Frasco 1.5L,Snacks,0,🍰
+Pepsi Lata Bolsa,Bebidas,0,🥤
+Azúcar Incauca Bolsa 1000ml,Abarrotes,0,🧂
+Azúcar Incauca Grande 500ml,Abarrotes,0,🧂
+Aceite Gourmet Tradicional 400ml,Abarrotes,0,🍳
+Arroz Roa Zero 1000ml,Abarrotes,0,🍚
+Cerveza Águila Pack Unidad,Licores,0,🍺
+Aceite Gourmet Pequeño 2L,Abarrotes,0,🍳
+Azúcar Incauca Frasco 500ml,Abarrotes,0,🧂
+Café Águila Roja Grande 500ml,Abarrotes,0,☕
+Leche Colanta Unidad 1.5L,Lácteos,0,🥛
+Salsa de Tomate Fruco Light 400ml,Abarrotes,0,🍅
+Coca-Cola Especial 1000g,Bebidas,0,🥤
+Leche Alquería Zero 1000g,Lácteos,0,🥛
+Leche Alquería Pack 250g,Lácteos,0,🥛
+Arequipe Alpina Frasco 250g,Lácteos,0,🍯
+Límpido Clorox Grande 1000g,Aseo,0,🧴
+Shampoo Bioexpert Light 2L,Aseo,0,🧴
+Pepsi Frasco Unidad,Bebidas,0,🥤
+Aceite Premier Light 400ml,Abarrotes,0,🍳
+Vela Blanca Grande 400ml,Hogar,0,🕯️
+Panela Tradicional 2L,Abarrotes,0,🟤
+Galletas Festival Unidad Lata,Snacks,0,🍪
+Aceite Premier Pequeño 1000g,Abarrotes,0,🍳
+Frijol cargamanto Lata 500ml,Abarrotes,0,🫘
+Límpido Clorox Familiar 250g,Aseo,0,🧴
+Agua Brisa Lata 1.5L,Bebidas,0,💧
+Mayonesa Fruco Grande 500g,Abarrotes,0,🥗
+Galletas Saltín Unidad 2L,Snacks,0,🍘
+Lentejas Frasco 2L,Abarrotes,0,🫘
+Harina Haz de Oros Unidad 1000g,Abarrotes,0,🌾
+Arroz Roa Bolsa Bolsa,Abarrotes,0,🍚
+Papel Higiénico Familia Light 500ml,Aseo,0,🧻
+Detodito Grande 500ml,Snacks,0,🍟
+Aceite Gourmet Lata 2L,Abarrotes,0,🍳
+Detodito Zero 1000g,Snacks,0,🍟
+Arroz Diana Especial 1.5L,Abarrotes,0,🍚
+Harina Doña Nora Lata 1000ml,Abarrotes,0,🌽
+Leche Alpina Unidad 2L,Lácteos,0,🥛
+Leche Colanta Lata Lata,Lácteos,0,🥛
+Aceite Gourmet Grande 2L,Abarrotes,0,🍳
+Panela Familiar 1000g,Abarrotes,0,🟤
+Café Águila Roja Tradicional Lata,Abarrotes,0,☕
+Límpido Clorox Pequeño Lata,Aseo,0,🧴
+Límpido Clorox Pack Bolsa,Aseo,0,🧴
+Chocolate Corona Lata Bolsa,Abarrotes,0,🍫
+Red Bull Pack 1000ml,Bebidas,0,⚡
+Leche Alquería Grande 1000ml,Lácteos,0,🥛
+Mr Tea Lata 1000ml,Bebidas,0,🧊
+Sal Refisal Bolsa 500ml,Abarrotes,0,🧂
+Leche Alquería Familiar 1000g,Lácteos,0,🥛
+Límpido Clorox Zero 1000ml,Aseo,0,🧴
+Café Águila Roja Pack Unidad,Abarrotes,0,☕
+Yogurt Alpina Familiar 1.5L,Lácteos,0,🥛

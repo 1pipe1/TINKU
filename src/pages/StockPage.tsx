@@ -10,7 +10,9 @@ import {
   orderBy,
   limit,
 } from "firebase/firestore";
-import { db, auth } from "../firebase";
+
+
+import { db } from "../firebase";
 import { toast } from "sonner";
 import useStockStore from "../store/useStockStore";
 import useAuthStore from "../store/useAuthStore";
@@ -55,7 +57,6 @@ const StockPage = () => {
   const updateProductLocally = useStockStore((state) => state.updateProductLocally);
   const deleteProductLocally = useStockStore((state) => state.deleteProductLocally);
   const user = useAuthStore((state) => state.user);
-  const isAuthReady = useAuthStore((state) => state.isAuthReady);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -79,6 +80,7 @@ const StockPage = () => {
   const uid = user?.uid || user?.id;
 
   // 1. Cargar inventario privado del usuario activo
+
   useEffect(() => {
     if (uid) {
       setLoading(true);
@@ -107,21 +109,11 @@ const StockPage = () => {
           }
         }
 
-        // Consultar Firestore únicamente si no hay datos locales y la sesión está activa y autenticada
-        if (
-          ordersData.length === 0 &&
-          isAuthReady &&
-          auth.currentUser &&
-          auth.currentUser.uid === uid
-        ) {
-          try {
-            const ordersRef = collection(db, "usuarios", uid, "orders");
-            const q = query(ordersRef, orderBy("createdAt", "desc"), limit(15));
-            const snap = await getDocs(q);
-            ordersData = snap.docs.map((d) => d.data());
-          } catch (cloudErr) {
-            console.warn("Aviso al consultar ventas express en la nube:", cloudErr);
-          }
+        if (ordersData.length === 0) {
+          const ordersRef = collection(db, "usuarios", uid, "orders");
+          const q = query(ordersRef, orderBy("createdAt", "desc"), limit(15));
+          const snap = await getDocs(q);
+          ordersData = snap.docs.map((d) => d.data());
         }
 
         const expressMap = new Map<string, number>();
@@ -157,12 +149,12 @@ const StockPage = () => {
 
         setPendingExpressItems(pendingList);
       } catch (err) {
-        console.warn("Aviso buscando ventas express privadas:", err);
+        console.error("Error buscando ventas express privadas:", err);
       }
     };
 
     loadPendingExpress();
-  }, [uid, products, isAuthReady]);
+  }, [uid]);
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -336,6 +328,8 @@ const StockPage = () => {
           + Agregar producto
         </button>
       </div>
+
+
 
       {/* 🎈 Productos cobrados rápidamente y aún no registrados */}
       {pendingExpressItems.length > 0 && (
@@ -716,5 +710,6 @@ const StockPage = () => {
     </div>
   );
 };
+
 
 export default StockPage;

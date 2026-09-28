@@ -8,7 +8,7 @@ import {
   orderBy,
   limit,
 } from "firebase/firestore";
-import { db, auth } from "../firebase";
+import { db } from "../firebase";
 import useAuthStore from "../store/useAuthStore";
 import useStockStore from "../store/useStockStore";
 import { useNavigate } from "react-router-dom";
@@ -99,7 +99,6 @@ const SalesPage = () => {
   };
 
   const user = useAuthStore((state) => state.user);
-  const isAuthReady = useAuthStore((state) => state.isAuthReady);
   const navigate = useNavigate();
 
   const uid = user?.uid;
@@ -110,6 +109,13 @@ const SalesPage = () => {
       setLoading(false);
       return;
     }
+
+    setLoading(true);
+    const ordersQuery = query(
+      collection(db, "usuarios", uid, "orders"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
 
     const getMergedOrders = (firestoreOrders: Order[]) => {
       const localOrdersStr = localStorage.getItem(`tinku_orders_${uid}`);
@@ -150,39 +156,23 @@ const SalesPage = () => {
       });
     };
 
-    // Cargar de inmediato órdenes locales (0 ms, sin bloqueos)
-    setOrders(getMergedOrders([]));
+    const unsubscribe = onSnapshot(
+      ordersQuery,
+      (snapshot) => {
+        const rawOrders = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        })) as Order[];
 
-    let unsubscribe = () => {};
-
-    if (isAuthReady && auth.currentUser && auth.currentUser.uid === uid) {
-      setLoading(true);
-      const ordersQuery = query(
-        collection(db, "usuarios", uid, "orders"),
-        orderBy("createdAt", "desc"),
-        limit(50)
-      );
-
-      unsubscribe = onSnapshot(
-        ordersQuery,
-        (snapshot) => {
-          const rawOrders = snapshot.docs.map((docSnap) => ({
-            id: docSnap.id,
-            ...docSnap.data(),
-          })) as Order[];
-
-          setOrders(getMergedOrders(rawOrders));
-          setLoading(false);
-        },
-        (error) => {
-          console.warn("Suscripción de Firestore offline, cargando órdenes locales:", error);
-          setOrders(getMergedOrders([]));
-          setLoading(false);
-        }
-      );
-    } else {
-      setLoading(false);
-    }
+        setOrders(getMergedOrders(rawOrders));
+        setLoading(false);
+      },
+      (error) => {
+        console.warn("Suscripción de Firestore offline, cargando órdenes locales:", error);
+        setOrders(getMergedOrders([]));
+        setLoading(false);
+      }
+    );
 
     const handleLocalSync = () => {
       setOrders((prev) => getMergedOrders(prev));
@@ -196,7 +186,7 @@ const SalesPage = () => {
       window.removeEventListener("tinku_orders_updated", handleLocalSync);
       window.removeEventListener("storage", handleLocalSync);
     };
-  }, [uid, isAuthReady]);
+  }, [uid]);
 
   const todayString = getLocalDateString(new Date());
 

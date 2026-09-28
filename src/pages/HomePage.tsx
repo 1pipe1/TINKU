@@ -1,31 +1,44 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import ProductCard from "../components/molecules/ProductCard";
 import Navbar from "../components/organisms/Navbar";
 import QuickCheckoutDrawer from "../components/organisms/QuickCheckoutDrawer";
 import { CartDrawer } from "../components/organisms/CartDrawer";
 import LogoutConfirmModal from "../components/molecules/LogoutConfirmModal";
+import ActivateMaestroModal from "../components/molecules/ActivateMaestroModal";
+import ExpressPriceModal from "../components/molecules/ExpressPriceModal";
+import CategoryFilterBar, {
+  type CategoryItem,
+  CATEGORY_ICONS_MAP,
+} from "../components/molecules/CategoryFilterBar";
 import useAuthStore from "../store/useAuthStore";
 import { useNavigate } from "react-router-dom";
 import useStockStore from "../store/useStockStore";
 import useCartStore from "../store/useCartStore";
 import { useDraftStore } from "../store/useDraftStore";
+import { CATALOGO_MAESTRO, type MaestroProduct } from "../data/catalogoMaestro";
+import type { Product } from "../types/product";
 import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import useKeyboardStatus from "../hooks/useKeyboardStatus";
-import type { FC, FormEvent } from "react";
+import type { FC } from "react";
 
 const HomePage: FC = () => {
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
   const [loading, setLoading] = useState(true);
   const [isQuickDrawerOpen, setIsQuickDrawerOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false); // 🔥 Control de apertura del Carrito Deslizable!
   const [isExpressPriceOpen, setIsExpressPriceOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [selectedMaestro, setSelectedMaestro] = useState<MaestroProduct | null>(null);
+  const [isActivateModalOpen, setIsActivateModalOpen] = useState(false);
+
   const draftCount = useDraftStore((state) => state.draftCount);
   const [expressProductName, setExpressProductName] = useState("");
-  const [expressPriceInput, setExpressPriceInput] = useState("1000");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+
 
   const isKeyboardOpen = useKeyboardStatus();
   // Se considera activo cuando el teclado virtual está desplegado o cuando el tendero está enfocado escribiendo en el buscador
@@ -138,21 +151,17 @@ const HomePage: FC = () => {
   };
 
   const openExpressPriceDialog = () => {
+    // 🔥 Esconder el teclado nativo de Android/iOS inmediatamente al abrir el modal
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setExpressProductName(search.trim());
-    setExpressPriceInput("");
     setIsExpressPriceOpen(true);
   };
 
-  const handleExpressPriceSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const price = parseFloat(expressPriceInput.trim().replace(",", "."));
 
-    if (!expressProductName || !Number.isFinite(price) || price <= 0) {
-      return;
-    }
-
+  const handleConfirmExpressPrice = (price: number) => {
     handleAddProduct(expressProductName, price);
-    setSearch("");
     setIsExpressPriceOpen(false);
   };
 
@@ -167,11 +176,169 @@ const HomePage: FC = () => {
     navigate("/login");
   };
 
-  // 3. Filtro de búsqueda por nombre o título
-  const filteredProducts = products.filter((product: any) => {
-    const title = product?.nombre || product?.title || product?.name || "";
-    return title.toLowerCase().includes(search.toLowerCase());
-  });
+  // 🏷️ Lista Dinámica de Categorías de la Tienda
+  const categoriesList = useMemo<CategoryItem[]>(() => {
+    const standardCategories = [
+      "Bebidas",
+      "Lácteos",
+      "Abarrotes",
+      "Snacks",
+      "Licores",
+      "Aseo",
+      "Panadería",
+      "Hogar",
+    ];
+
+    // Conteo de productos por categoría en el inventario activo del tendero
+    const counts: Record<string, number> = {};
+    products.forEach((p) => {
+      const cat = p.category || (p as any).categoria || "General";
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+
+    // Combinar categorías existentes con las estándar
+    const allCatNames = Array.from(
+      new Set([...Object.keys(counts), ...standardCategories])
+    ).filter((c) => c !== "Venta Express" && c.trim() !== "");
+
+    // Priorizar categorías que tienen productos en stock
+    allCatNames.sort((a, b) => {
+      const countA = counts[a] || 0;
+      const countB = counts[b] || 0;
+      if (countA > 0 && countB === 0) return -1;
+      if (countB > 0 && countA === 0) return 1;
+      return a.localeCompare(b);
+    });
+
+    const items: CategoryItem[] = [
+      {
+        name: "Todas",
+        icon: CATEGORY_ICONS_MAP["Todas"] || "✨",
+        count: products.length,
+      },
+      ...allCatNames.map((catName) => ({
+        name: catName,
+        icon: CATEGORY_ICONS_MAP[catName] || "🏷️",
+        count: counts[catName] || 0,
+      })),
+    ];
+
+    return items;
+  }, [products]);
+
+  const cleanText = (str: string) =>
+    str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  // Nombres activos en el inventario personal del tendero para evitar sugerencias duplicadas
+  const activeProductNames = new Set(
+    products.map((p) => cleanText(p.title || (p as any).nombre || p.name || ""))
+  );
+
+  const cleanQuery = cleanText(search);
+
+  // 🌟 Lógica de Búsqueda y Filtro de Categoría Integrada:
+  // 1. Respeta la categoría seleccionada (si es diferente de "Todas")
+  // 2. Prioriza los productos que el tendero YA TIENE en su inventario.
+  // 3. Muestra coincidencias del Catálogo Maestro como "Sugerido" (sin activar).
+  let displayProducts: Product[] = [];
+
+  if (cleanQuery) {
+    const matchedActive = products.filter((p) => {
+      const title = cleanText(p?.title || (p as any)?.nombre || p?.name || "");
+      const cat = cleanText(p?.category || (p as any)?.categoria || "");
+      const matchesSearch = title.includes(cleanQuery) || cat.includes(cleanQuery);
+      const matchesCategory =
+        selectedCategory === "Todas" ||
+        (p?.category || (p as any)?.categoria) === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+
+    const matchedMaestro = CATALOGO_MAESTRO
+      .filter((m) => {
+        const title = cleanText(m.nombre);
+        const cat = cleanText(m.categoria);
+        const matchesSearch = title.includes(cleanQuery) || cat.includes(cleanQuery);
+        const matchesCategory =
+          selectedCategory === "Todas" || m.categoria === selectedCategory;
+        return (
+          !activeProductNames.has(title) &&
+          matchesSearch &&
+          matchesCategory
+        );
+      })
+      .slice(0, 20)
+      .map(
+        (m) =>
+          ({
+            id: m.id,
+            title: m.nombre,
+            name: m.nombre,
+            category: m.categoria,
+            price: 0,
+            cost: 0,
+            stock: 0,
+            icono: m.icono,
+            pendingActivation: true,
+          } as Product)
+      );
+
+    displayProducts = [...matchedActive, ...matchedMaestro];
+  } else {
+    // Si no está buscando por texto:
+    if (selectedCategory !== "Todas") {
+      // Filtrado exclusivo por la categoría seleccionada en el módulo:
+      const activeInCategory = products.filter(
+        (p) => (p.category || (p as any).categoria) === selectedCategory
+      );
+
+      const maestroInCategory = CATALOGO_MAESTRO
+        .filter(
+          (m) =>
+            m.categoria === selectedCategory &&
+            !activeProductNames.has(cleanText(m.nombre))
+        )
+        .slice(0, 16)
+        .map(
+          (m) =>
+            ({
+              id: m.id,
+              title: m.nombre,
+              name: m.nombre,
+              category: m.categoria,
+              price: 0,
+              cost: 0,
+              stock: 0,
+              icono: m.icono,
+              pendingActivation: true,
+            } as Product)
+        );
+
+      displayProducts = [...activeInCategory, ...maestroInCategory];
+    } else {
+      // "Todas" sin búsqueda:
+      if (products.length > 0) {
+        displayProducts = products;
+      } else {
+        // Usuario nuevo (inventario personal en 0):
+        // La bóveda permanece en segundo plano hasta que el tendero busque un producto
+        displayProducts = [];
+      }
+    }
+  }
+
+
+  const handleOpenActivateModal = (prod: Product) => {
+    const maestroItem = CATALOGO_MAESTRO.find((m) => m.id === prod.id) || {
+      id: prod.id,
+      nombre: (prod as any).nombre || prod.title,
+      categoria: (prod as any).categoria || prod.category,
+      icono: (prod as any).icono || "📦",
+      precio: 0,
+    };
+    setSelectedMaestro(maestroItem);
+    setIsActivateModalOpen(true);
+  };
+
 
   if (loading) {
     return (
@@ -283,12 +450,100 @@ const HomePage: FC = () => {
           </div>
         )}
 
+        {/* 🏷️ MÓDULO EXCLUSIVO DE CATEGORÍAS (4ta forma de búsqueda rápida en 1 toque) */}
+        {!isKeyboardActive && (
+          <CategoryFilterBar
+            categories={categoriesList}
+            selectedCategory={selectedCategory}
+            onSelectCategory={(cat) => setSelectedCategory(cat)}
+          />
+        )}
+
         {/* Parrilla de Productos del Catálogo */}
-        {filteredProducts.length > 0 ? (
+        {displayProducts.length > 0 ? (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
+            {displayProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onActivate={handleOpenActivateModal}
+              />
             ))}
+          </div>
+        ) : products.length === 0 && !search.trim() && selectedCategory === "Todas" ? (
+          /* 🌟 Guía Amigable de Bienvenida cuando el inventario está en 0 */
+          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-sm text-center max-w-xl mx-auto my-3 sm:my-6 animate-fade-in">
+            {/* Ícono llamativo y cálido */}
+            <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto rounded-3xl bg-linear-to-tr from-orange-500 to-amber-400 text-white flex items-center justify-center text-4xl sm:text-5xl shadow-lg shadow-orange-500/20 mb-5">
+              🏪
+            </div>
+
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mb-2">
+              ¡Bienvenida a tu mostrador TINKU!
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 mb-6 leading-relaxed max-w-md mx-auto">
+              Tu tienda inicia limpia con <span className="font-black text-orange-600">0 productos</span>. Dispones de un <span className="font-bold text-slate-800">Catálogo Maestro en la bóveda</span> con más de 500 productos listos para activarse a tu gusto.
+            </p>
+
+            {/* Tarjeta de Guía paso a paso */}
+            <div className="bg-orange-50/70 border-2 border-dashed border-orange-200 rounded-2xl p-4 sm:p-5 text-left mb-6">
+              <div className="flex items-center gap-2 text-orange-900 font-black text-sm mb-1.5">
+                <span className="text-xl">🔍</span>
+                <span>¿Cómo empezar a vender?</span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-600 leading-normal mb-3.5">
+                Toca la barra superior <strong className="text-slate-800">"Buscar producto..."</strong> y escribe lo que te pidan en el mostrador. Le pones tu precio de venta una sola vez y listo.
+              </p>
+
+              {/* Chips interactivos de prueba para desbloquear la bóveda */}
+              <div className="pt-3 border-t border-orange-200/60">
+                <p className="text-[11px] font-black text-orange-700 uppercase tracking-wider mb-2">
+                  O prueba tocando uno de estos ejemplos:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { name: "Coca-Cola", icon: "🥤" },
+                    { name: "Leche Alquería", icon: "🥛" },
+                    { name: "Huevos", icon: "🥚" },
+                    { name: "Arroz Diana", icon: "🍚" },
+                    { name: "Jabón Rey", icon: "🧼" },
+                    { name: "Pan Bimbo", icon: "🍞" },
+                  ].map((pill) => (
+                    <button
+                      key={pill.name}
+                      type="button"
+                      onClick={() => setSearch(pill.name)}
+                      className="bg-white hover:bg-orange-100 hover:text-orange-800 text-slate-700 border border-orange-200/80 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                      <span>{pill.icon}</span>
+                      <span>{pill.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Acceso para Cobro Express */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 text-left">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl bg-orange-100 text-orange-600 p-2 rounded-xl">⚡</span>
+                <div>
+                  <p className="text-xs sm:text-sm font-black text-slate-800">
+                    ¿Producto suelto o no catalogado?
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Úsalo para recargas, minutos o ventas rápidas
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuickDrawerOpen(true)}
+                className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-4 py-2.5 rounded-xl transition-all cursor-pointer text-center shrink-0 active:scale-95"
+              >
+                Abrir Cobro Express
+              </button>
+            </div>
           </div>
         ) : (
           <div
@@ -298,6 +553,8 @@ const HomePage: FC = () => {
                 : "py-10 md:py-14 px-6 my-4 shadow-sm"
             }`}
           >
+
+
             <div
               className={`mx-auto rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black transition-all ${
                 isKeyboardActive
@@ -372,56 +629,14 @@ const HomePage: FC = () => {
       {/* 🔥 NUESTRO NUEVO CARRITO DESLIZABLE COMPACTO 🔥 */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
 
-      {isExpressPriceOpen && (
-        <div
-          className="fixed inset-0 z-120 flex items-center justify-center bg-black/60 p-4"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setIsExpressPriceOpen(false);
-            }
-          }}
-        >
-          <form
-            onSubmit={handleExpressPriceSubmit}
-            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
-          >
-            <h2 className="text-lg font-black text-gray-800">
-              Precio de venta
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              ¿A cómo vas a vender "{expressProductName}"?
-            </p>
-            <label className="mt-5 block text-sm font-bold text-gray-700">
-              Precio
-              <input
-                autoFocus
-                type="text"
-                inputMode="decimal"
-                value={expressPriceInput}
-                onChange={(event) => setExpressPriceInput(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-lg font-bold focus:border-orange-500 focus:outline-none"
-                aria-label="Precio de venta"
-              />
-            </label>
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setIsExpressPriceOpen(false)}
-                className="flex-1 rounded-xl bg-gray-100 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="flex-1 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white hover:bg-orange-600"
-              >
-                Agregar al carrito
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {/* ⚡ Modal de Cobro Express con Teclado Táctil Gigante (Sin teclado nativo del móvil) */}
+      <ExpressPriceModal
+        isOpen={isExpressPriceOpen}
+        productName={expressProductName}
+        onClose={() => setIsExpressPriceOpen(false)}
+        onConfirm={handleConfirmExpressPrice}
+      />
+
 
       {/* Acceso de rescate: permanece disponible al bajar por el catálogo (se oculta con teclado activo) */}
       {!isKeyboardActive && !isQuickDrawerOpen && !isCartOpen && (
@@ -533,12 +748,25 @@ const HomePage: FC = () => {
         </div>
       )}
 
+      <ActivateMaestroModal
+        isOpen={isActivateModalOpen}
+        product={selectedMaestro}
+        onClose={() => {
+          setIsActivateModalOpen(false);
+          setSelectedMaestro(null);
+        }}
+        onActivated={() => {
+          setSearch("");
+        }}
+      />
+
       <LogoutConfirmModal
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
         onConfirm={handleConfirmLogout}
         userEmail={user?.email}
       />
+
     </div>
   );
 };

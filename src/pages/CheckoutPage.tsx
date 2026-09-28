@@ -35,83 +35,43 @@ const CheckoutPage: FC = () => {
   useEffect(() => {
     if (!resumeId) return;
     const loadDraft = async () => {
-      // 1. Intentar cargar desde almacenamiento local primero
-      const uid = user?.uid;
-      if (uid) {
-        const localDraftsStr = localStorage.getItem(`tinku_drafts_${uid}`);
-        if (localDraftsStr) {
-          try {
-            const parsed = JSON.parse(localDraftsStr);
-            const found = parsed.find((d: any) => d.id === resumeId);
-            if (found && found.items) {
-              const items = found.items.map((it: any) => ({
-                id: it.id,
-                title: it.title || it.name,
-                price: it.price || 0,
-                image: it.image || "",
-                quantity: it.quantity || 1,
-                isExpress: it.isExpress || false,
-              }));
-              setCart(items);
-              return;
-            }
-          } catch {}
-        }
-      }
-
-      // 2. Si no está en local y hay sesión en Firebase, consultar Firestore
       try {
-        if (auth.currentUser) {
-          const draftRef = doc(db, "draftOrders", resumeId);
-          const snap = await runTransaction(db, async (transaction) => {
-            return await transaction.get(draftRef);
-          });
-          if (snap.exists()) {
-            const data = snap.data();
-            const items = (data.items || []).map((it: any) => ({
-              id: it.id,
-              title: it.title || it.name,
-              price: it.price || 0,
-              image: it.image || "",
-              quantity: it.quantity || 1,
-              isExpress: it.isExpress || false,
-            }));
-            setCart(items);
-          }
+        const draftRef = doc(db, "draftOrders", resumeId);
+        const snap = await runTransaction(db, async (transaction) => {
+          return await transaction.get(draftRef);
+        });
+        if (snap.exists()) {
+          const data = snap.data();
+          const items = (data.items || []).map((it: any) => ({
+            id: it.id,
+            title: it.title || it.name,
+            price: it.price || 0,
+            image: it.image || "",
+            quantity: it.quantity || 1,
+            isExpress: it.isExpress || false,
+          }));
+          setCart(items);
         }
       } catch (e) {
-        console.warn("Error consultando borrador en la nube:", e);
+        console.error("Error loading draft for resume:", e);
       }
     };
     loadDraft();
-  }, [resumeId, setCart, user?.uid]);
+  }, [resumeId, setCart]);
 
   useEffect(() => {
     if (!activeDraftId || cart.length > 0) return;
     const cleanupDraft = async () => {
-      const uid = user?.uid;
-      if (uid) {
-        const localDraftsStr = localStorage.getItem(`tinku_drafts_${uid}`);
-        if (localDraftsStr) {
-          try {
-            const parsed = JSON.parse(localDraftsStr);
-            const filtered = parsed.filter((d: any) => d.id !== activeDraftId);
-            localStorage.setItem(`tinku_drafts_${uid}`, JSON.stringify(filtered));
-          } catch {}
-        }
-      }
       try {
-        if (auth.currentUser) {
-          await deleteDoc(doc(db, "draftOrders", activeDraftId));
-        }
+        await deleteDoc(doc(db, "draftOrders", activeDraftId));
       } catch (error) {
-        console.warn("Error borrando borrador en la nube:", error);
+        console.error("Error deleting resumed draft after cart was cleared:", error);
       } finally {
         clearActiveDraftId();
       }
     };
     cleanupDraft();
-  }, [activeDraftId, cart.length, clearActiveDraftId, user?.uid]);
+  }, [activeDraftId, cart.length, clearActiveDraftId]);
 
   const finalizePurchase = async (cashPaidAmount: number | null = null) => {
     const uid = user?.uid || user?.uid;
@@ -295,57 +255,33 @@ const CheckoutPage: FC = () => {
 
     setLoading(true);
     try {
-      const draftId = `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const draftData = {
-        id: draftId,
-        customerName: "",
-        paymentMethod,
-        items: cart.map((item) => ({
-          id: item.id,
-          title: item.title || item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image || "",
-          isExpress: item.isExpress || false,
-        })),
-        total: totalPrice,
-        status: "suspended",
-        createdBy: user?.email || user?.phoneNumber || "Usuario",
-        createdByUid: uid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const newDraftRef = doc(collection(db, "draftOrders"));
+      await runTransaction(db, async (transaction) => {
+        transaction.set(newDraftRef, {
+          customerName: "",
+          paymentMethod,
+          items: cart.map((item) => ({
+            id: item.id,
+            title: item.title || item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image || "",
+            isExpress: item.isExpress || false,
+          })),
+          total: totalPrice,
+          status: "suspended",
+          createdBy: user?.email || "guest",
+          createdByUid: uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
 
-      // 1. Guardar de forma inmediata en LocalStorage (100% garantizado)
-      const existingDraftsStr = localStorage.getItem(`tinku_drafts_${uid}`);
-      const existingDrafts: any[] = existingDraftsStr ? JSON.parse(existingDraftsStr) : [];
-      const updatedDrafts = [draftData, ...existingDrafts.filter((d: any) => d.id !== draftId && d.id !== activeDraftId)];
-      localStorage.setItem(`tinku_drafts_${uid}`, JSON.stringify(updatedDrafts));
-
-      // 2. Si Firebase está conectado y autenticado, sincronizar a Firestore
-      try {
-        if (auth.currentUser && auth.currentUser.uid === uid) {
-          const newDraftRef = doc(db, "draftOrders", draftId);
-          await runTransaction(db, async (transaction) => {
-            transaction.set(newDraftRef, {
-              ...draftData,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-          });
-        }
-      } catch (cloudErr) {
-        console.warn("Borrador guardado localmente (sincronización en la nube omitida):", cloudErr);
-      }
-
-      // 3. Si veníamos de reanudar un borrador anterior, eliminar el anterior
       if (activeDraftId) {
         try {
-          if (auth.currentUser && auth.currentUser.uid === uid) {
-            await deleteDoc(doc(db, "draftOrders", activeDraftId));
-          }
+          await deleteDoc(doc(db, "draftOrders", activeDraftId));
         } catch (error) {
-          console.warn("Aviso al eliminar borrador previo en la nube:", error);
+          console.error("Error deleting previous draft:", error);
         }
       }
 

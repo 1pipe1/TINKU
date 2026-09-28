@@ -3,12 +3,12 @@ import { getFirestore, collection, doc, writeBatch } from "firebase/firestore";
 import { DEFAULT_PRODUCTS } from "../data/defaultProducts";
 
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: process.env.VITE_FIREBASE_APP_ID || "",
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyForDevelopment00000000",
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || "nexoio-dev.firebaseapp.com",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "nexoio-dev",
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || "nexoio-dev.appspot.com",
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1234567890",
+  appId: process.env.VITE_FIREBASE_APP_ID || "1:1234567890:web:mockappid000",
 };
 
 const app = initializeApp(firebaseConfig);
@@ -24,7 +24,7 @@ async function seed() {
   for (const prod of DEFAULT_PRODUCTS) {
     const docRef = doc(globalRef, prod.id);
     batch.set(docRef, {
-      
+      sku: prod.sku || prod.id,
       nombre: prod.name || prod.title,
       categoria: prod.category || "General",
       costo: prod.cost || 0,

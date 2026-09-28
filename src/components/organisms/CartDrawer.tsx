@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { collection, serverTimestamp, doc, deleteDoc, runTransaction } from "firebase/firestore";
-import { db, auth } from "../../firebase";
+import { db } from "../../firebase";
 import useCartStore from "../../store/useCartStore";
 import useAuthStore from "../../store/useAuthStore";
 import useStockStore from "../../store/useStockStore";
@@ -225,20 +225,12 @@ export const CartDrawer: FC<CartDrawerProps> = ({ isOpen, onClose }) => {
       // Notificar a toda la app para actualización inmediata sin recargas
       window.dispatchEvent(new Event("tinku_orders_updated"));
 
-      // Si venimos reanudando un borrador o suspendida, borrarlo tanto en local como en la nube
+      // Si venimos reanudando un borrador o suspendida, borrarlo
       if (activeDraftId) {
         try {
-          const localDraftsStr = localStorage.getItem(`tinku_drafts_${uid}`);
-          if (localDraftsStr) {
-            const parsed = JSON.parse(localDraftsStr);
-            const filtered = parsed.filter((d: any) => d.id !== activeDraftId);
-            localStorage.setItem(`tinku_drafts_${uid}`, JSON.stringify(filtered));
-          }
-          if (auth.currentUser && auth.currentUser.uid === uid) {
-            await deleteDoc(doc(db, "draftOrders", activeDraftId));
-          }
+          await deleteDoc(doc(db, "draftOrders", activeDraftId));
         } catch (e) {
-          console.warn("Aviso al limpiar borrador reanudado:", e);
+          console.error("Error deleting resumed draft:", e);
         }
       }
 
