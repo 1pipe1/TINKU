@@ -1,5 +1,6 @@
 export type Product = {
   id: string; // SKU o ID generado
+  sku?: string;
   title: string;
   name?: string;
   price: number;
