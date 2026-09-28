@@ -5,13 +5,17 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  type ConfirmationResult,
 } from "firebase/auth";
 import useCartStore from "./useCartStore";
 import useStockStore from "./useStockStore";
+import { verifyPhoneOtpCode } from "../services/phoneAuthService";
+import { authService } from "../services/authService";
 
 export type AuthUser = {
   uid: string;
   email: string | null;
+  phoneNumber?: string | null;
   id?: string;
   role?: "admin" | "seller" | "pending";
 };
@@ -19,9 +23,11 @@ export type AuthUser = {
 type StoredUser = {
   uid: string;
   email: string;
+  phoneNumber?: string;
   password?: string;
   role: "admin" | "seller";
 };
+
 
 // Cuentas pre-cargadas de prueba y del emulador (incluyendo alo@1 de accounts.json)
 const PRELOADED_USERS: StoredUser[] = [
@@ -82,6 +88,11 @@ type AuthState = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithPhone: (
+    phoneNumber: string,
+    code: string,
+    confirmationResult: ConfirmationResult
+  ) => Promise<{ success: boolean; message?: string }>;
   register: (
     email: string,
     password: string,
@@ -90,6 +101,7 @@ type AuthState = {
   logout: () => Promise<void>;
   switchUser: (email: string) => Promise<boolean>;
 };
+
 
 const useAuthStore = create<AuthState>()(
   persist(
@@ -208,7 +220,62 @@ const useAuthStore = create<AuthState>()(
         }
       },
 
+      loginWithPhone: async (
+        phoneNumber: string,
+        code: string,
+        confirmationResult: ConfirmationResult
+      ) => {
+        try {
+          const res = await verifyPhoneOtpCode(confirmationResult, code);
+
+          if (!res.success || !res.credential) {
+            return {
+              success: false,
+              message: res.error || "No se pudo verificar el código SMS.",
+            };
+          }
+
+          const firebaseUser = res.credential.user;
+          const profile = await authService.syncUserProfile(firebaseUser);
+
+          useCartStore.getState().clearCart();
+          useStockStore.getState().clearProducts();
+          localStorage.removeItem("stock-storage");
+          localStorage.removeItem("cart-storage");
+
+          const authenticatedUser: AuthUser = {
+            uid: firebaseUser.uid,
+            id: firebaseUser.uid,
+            email: firebaseUser.email || null,
+            phoneNumber: firebaseUser.phoneNumber || phoneNumber,
+            role: profile.role || "admin",
+          };
+
+          set({
+            user: authenticatedUser,
+            isAuthenticated: true,
+          });
+
+          // Guardar en usuarios registrados
+          saveStoredUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.phoneNumber || phoneNumber,
+            phoneNumber: firebaseUser.phoneNumber || phoneNumber,
+            role: profile.role || "admin",
+          });
+
+          return { success: true };
+        } catch (error: any) {
+          console.error("Error en loginWithPhone store:", error);
+          return {
+            success: false,
+            message: error?.message || "Error al verificar el código SMS.",
+          };
+        }
+      },
+
       register: async (email: string, password: string, role = "admin") => {
+
         const cleanEmail = email.trim();
         const lowerEmail = cleanEmail.toLowerCase();
 
