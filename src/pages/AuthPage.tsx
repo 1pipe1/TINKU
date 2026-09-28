@@ -67,15 +67,12 @@ const AuthPage = () => {
       if (res.success && res.confirmationResult) {
         setConfirmationResult(res.confirmationResult);
         setPhoneStep("enter_code");
-        if (res.isDemoMode) {
-          setSuccessMessage(`ℹ️ Modo de prueba activado. Usa el código: 123456`);
-          setOtpCode("123456");
-        } else {
-          setSuccessMessage(`Código enviado por SMS al ${formatColombianPhone(clean)}.`);
-        }
+        setOtpCode(""); // Campo limpio: el usuario debe digitar el código que reciba en su celular
+        setSuccessMessage(`Código enviado por SMS al ${formatColombianPhone(clean)}. Ingrésalo para continuar.`);
       } else {
         setError(res.error || "No se pudo enviar el código. Revisa el número ingresado.");
       }
+
     } catch (err: any) {
       setError(err?.message || "Error al solicitar código por SMS.");
     } finally {

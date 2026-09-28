@@ -123,16 +123,17 @@ export const sendPhoneVerificationCode = async (
     console.warn("Aviso al enviar código SMS en PhoneAuth:", error?.code, error?.message);
     clearRecaptcha(containerId);
 
-    // 💡 Si el proveedor de teléfono no está activado en Firebase Console (auth/operation-not-allowed),
-    // o en ambiente de pruebas sin cuota de SMS, habilitamos el modo simulado de verificación
+    const hasConfiguredKey = Boolean(import.meta.env.VITE_FIREBASE_API_KEY);
+
+    // Solo como fallback en entorno local si no hay credenciales de Firebase configuradas
     if (
-      error?.code === "auth/operation-not-allowed" ||
-      error?.code === "auth/invalid-api-key" ||
-      error?.code === "auth/app-not-authorized" ||
-      error?.code === "auth/internal-error"
+      !hasConfiguredKey &&
+      (error?.code === "auth/invalid-api-key" ||
+        error?.code === "auth/internal-error" ||
+        error?.code === "auth/app-not-authorized")
     ) {
       console.info(
-        "ℹ️ Modo de prueba activado para Phone Auth. Usa el código: 123456."
+        "ℹ️ Modo de prueba activado en entorno local sin variables de entorno configuradas."
       );
 
       const phoneDigits = formattedPhone.replace(/[^\d]/g, "");
@@ -181,15 +182,19 @@ export const sendPhoneVerificationCode = async (
 
     let message = "No se pudo enviar el código SMS. Intenta nuevamente.";
 
-    if (error?.code === "auth/invalid-phone-number") {
-      message = "El número de teléfono no es válido. Revisa los dígitos.";
+    if (error?.code === "auth/operation-not-allowed") {
+      message =
+        "El proveedor de Teléfono (SMS) aún no está habilitado en Firebase Authentication. Habilítalo en Firebase Console -> Authentication -> Sign-in method -> Teléfono.";
+    } else if (error?.code === "auth/invalid-phone-number") {
+      message = "El número de teléfono no es válido. Revisa los 10 dígitos.";
     } else if (error?.code === "auth/too-many-requests") {
-      message = "Demasiados intentos. Por favor espera unos minutos.";
+      message = "Demasiados intentos hacia este número. Por favor espera unos minutos.";
     } else if (error?.code === "auth/quota-exceeded") {
       message = "Cuota de SMS superada para este proyecto de Firebase.";
     } else if (error?.code === "auth/captcha-check-failed") {
-      message = "Error en la verificación reCAPTCHA. Intenta de nuevo.";
+      message = "Error en la verificación de seguridad reCAPTCHA. Intenta de nuevo.";
     }
+
 
     return {
       success: false,

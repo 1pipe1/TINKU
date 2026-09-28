@@ -28,6 +28,7 @@ export const useNetworkStatus = () => {
 
 interface ConnectionBadgeProps {
   userEmail?: string | null;
+  phoneNumber?: string | null;
   role?: string | null;
   compact?: boolean;
 }
@@ -38,10 +39,25 @@ interface ConnectionBadgeProps {
  */
 export const ConnectionBadge = ({
   userEmail,
+  phoneNumber,
   role,
   compact = false,
 }: ConnectionBadgeProps) => {
   const isOnline = useNetworkStatus();
+
+  // Obtener identificador limpio para mostrar (correo o teléfono)
+  const displayIdentifier = (() => {
+    if (userEmail) {
+      return userEmail.includes("@") ? userEmail.split("@")[0] : userEmail;
+    }
+    if (phoneNumber) {
+      // Limpiar prefijo +57 si es colombiano para mostrarlo compacto
+      const cleanPhone = phoneNumber.replace(/^\+57/, "");
+      return `📱 ${cleanPhone}`;
+    }
+    return null;
+  })();
+
 
   return (
     <div
@@ -71,16 +87,17 @@ export const ConnectionBadge = ({
         )}
       </span>
 
-      {/* Nombre o Correo del usuario */}
-      {userEmail && (
+      {/* Nombre, Correo o Celular del usuario */}
+      {displayIdentifier && (
         <span
           className={`font-semibold truncate ${
             compact ? "max-w-[85px] text-[11px]" : "max-w-[130px]"
           }`}
         >
-          {userEmail.split("@")[0]}
+          {displayIdentifier}
         </span>
       )}
+
 
       {/* Rol opcional (Admin) */}
       {role === "admin" && !compact && (
