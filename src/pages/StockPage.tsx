@@ -252,7 +252,6 @@ const StockPage = () => {
         const docRef = await addDoc(collection(db, "usuarios", uid, "productos"), data);
         addProductLocally({
           id: docRef.id,
-          sku: docRef.id,
           title: data.title,
           name: data.title,
           price: data.precio,

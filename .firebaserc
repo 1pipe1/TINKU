@@ -1,7 +1,8 @@
 {
   "projects": {
     "default": "tinku-prod-d6973",
-    "production": "tinku-prod-d6973"
+    "production": "tinku-prod-d6973",
+    "develop": "nexoio-dev"
   },
   "targets": {},
   "etags": {}

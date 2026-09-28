@@ -28,4 +28,4 @@ build/
 !.env.example
 src/scripts/serviceAccountKey.json
 **/serviceAccountKey.json
-
+migrar.js
